@@ -4,7 +4,9 @@ A growing collection of code **verifications** that give AI coding agents back-p
 
 ## After making changes, run `npm run verify`
 
-`npm run verify` runs `node src/cli.ts` — the tool checking its own source. With `verify:*` scripts defined in `package.json`, the orchestrator runs them in parallel and suppresses output unless one fails. The `verify:*` scripts are all **non-editing** (`verify:lint` = `oxlint .`, `verify:format` = `oxfmt --check .`, plus `verify:check-types`, `verify:complexity`, `verify:comment-block`) so the same command runs safely in CI (both workflows call `npm run verify` via the shared workflow's `lint-script`). To auto-fix lint/format locally, run `npm run fix` (`lint:fix` + `format`), then `npm run verify`.
+`npm run verify` runs `node src/cli.ts` — the orchestrator over the repo's own `verify:*` scripts, which call the built-in checks (`node src/cli.ts lint|format|check-types|complexity|comment-block`). It runs them in parallel and suppresses output unless one fails.
+
+**Fix locally, check in CI.** Run locally, `verify` **auto-fixes** what it can (`oxlint --fix`, `oxfmt`) so you don't waste effort hand-fixing lint/format. Under CI (`CI` env set — both workflows call `npm run verify` via the shared workflow's `lint-script`) the same command is **check-only** and fails if anything isn't already right. Force a mode with `verify --check` / `verify --fix`. (Mode propagates to the `verify:*` child scripts via the `VERIFY_MODE` env, so they carry no `--check`/`--fix` flags — those live only on the root command.)
 
 `verify:comment-block` runs with `--pushback`, so a flagged comment block prints a warning that keeping it pages a human. Take that seriously: delete the comment, or make the code self-explanatory, before reaching for the `context:` escape hatch.
 

@@ -63,6 +63,7 @@ export function registerChecks(program: Command): void {
       finish(runForbiddenStrings().ok)
     })
 
+  // Mode flows via the VERIFY_MODE env / CI, not per-subcommand flags (which collide with the root's --check).
   for (const check of CHECKS.filter((c) => c.kind === 'external')) {
     program
       .command(check.name)

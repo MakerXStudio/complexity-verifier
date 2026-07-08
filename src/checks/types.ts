@@ -1,5 +1,8 @@
 export type CheckKind = 'native' | 'external'
 
+/** Fixable checks auto-fix in `fix` mode and only report (failing on issues) in `check` mode. */
+export type CheckMode = 'fix' | 'check'
+
 export type CheckResult = {
   name: string
   ok: boolean

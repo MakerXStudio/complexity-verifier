@@ -32,23 +32,28 @@ Running `verify` with no subcommand follows a convention:
 - **No `verify:*` scripts in `package.json`** → it runs the **built-in default checks** in their default modes. Each check degrades gracefully — it passes or skips when it does not apply (no files, no diff, tool not installed, no rules configured).
 - **`verify:*` scripts present** → it runs **those** in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code). Add `--verbose` to stream everything.
 
-You take control by adding `verify:*` scripts. Each can call a built-in or run your own command:
+You take control by adding `verify:*` scripts. Prefer calling the built-ins (`verify <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
 ```jsonc
 {
   "scripts": {
     "verify": "verify",
     "verify:complexity": "verify complexity --threshold 50 \"src/**/*.ts\"",
-    "verify:knip": "knip --no-progress --treat-config-hints-as-errors",
-    "verify:types": "tsc --noEmit",
+    "verify:lint": "verify lint",
+    "verify:custom": "node ./scripts/my-check.mjs",
   },
 }
 ```
 
 Run a single built-in directly: `verify complexity`, `verify knip`, … and `verify list` shows them all.
 
+### Fix locally, check in CI
+
+Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verify` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Override explicitly with `verify --fix` or `verify --check`.
+
 Flags on the bare `verify` command:
 
+- `--check` / `--fix` — force check-only or auto-fix (defaults: fix locally, check under CI).
 - `--measure` — print a status/duration summary table.
 - `--all` — run every `verify:*` script, ignoring diff-based filters.
 - `--verbose` — stream all output instead of suppressing passing runs.
@@ -62,12 +67,14 @@ Flags on the bare `verify` command:
 | `block-comments`    | native   | Any comment added to a line changed against `HEAD`. Machine directives (`eslint-disable`, `@ts-expect-error`, …) and `context:` are exempt. |
 | `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                  |
 | `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                            |
+| `lint`              | external | Lint — auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                         |
+| `format`            | external | Formatting — writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                        |
+| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                             |
 | `knip`              | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                          |
 | `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                   |
 | `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                        |
-| `lint`              | external | Lint + autofix ([oxlint](https://oxc.rs)).                                                                                                  |
 
-External checks shell out to their tool and **skip gracefully when it is not installed** — `verify init` installs the ones you opt into. They are declared as optional `peerDependencies`.
+External checks shell out to their tool and **skip gracefully when it is not installed** — `verify init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verify` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
 ### `complexity`
 
@@ -118,7 +125,7 @@ It lets you multi-select **checks** and **agent targets** (Claude `.claude/`, an
 Options:
 
 - `--defaults-only` — do **not** write `verify:*` scripts; rely on `verify`'s built-in defaults (still installs opted-in tools and writes agent files).
-- `--yes` — non-interactive; use `--check <name>` (repeatable), `--no-claude`, `--agents`.
+- `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
 ### `verify upgrade-docs`
 

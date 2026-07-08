@@ -12,18 +12,21 @@ describe('check registry', () => {
         'block-comments',
         'hardcoded-colors',
         'forbidden-strings',
+        'lint',
+        'format',
+        'check-types',
         'knip',
         'circular-deps',
         'duplicate-code',
-        'lint',
       ]),
     )
   })
 
-  it('marks external tool checks with scaffold devDeps', () => {
+  it('marks external tool checks with scaffold devDeps and a verify-CLI script', () => {
     const knip = getCheck('knip')
     expect(knip?.kind).toBe('external')
     expect(knip?.scaffold.devDeps).toContain('knip')
+    expect(knip?.scaffold.script).toBe('verify knip')
   })
 
   it('scaffolds native checks back into the verify CLI', () => {

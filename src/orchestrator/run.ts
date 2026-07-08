@@ -1,4 +1,5 @@
 import { color } from '../shared/color.ts'
+import { configureMode } from '../shared/mode.ts'
 import { runCommand, setVerbose } from '../shared/spawn.ts'
 import { filterByChangedFiles } from './filterByChangedFiles.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
@@ -9,6 +10,8 @@ export type OrchestrateOptions = {
   all?: boolean
   measure?: boolean
   verbose?: boolean
+  check?: boolean
+  fix?: boolean
 }
 
 async function runEntry(entry: VerifyEntry): Promise<MeasureRecord> {
@@ -34,6 +37,8 @@ function reportScriptResults(records: readonly MeasureRecord[], total: number): 
  */
 export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number> {
   setVerbose(!!opts.verbose)
+  // Propagate an explicit --check/--fix via VERIFY_MODE so it reaches spawned verify:* scripts too.
+  configureMode(opts)
 
   const allEntries = resolveEntries()
   if (allEntries.length === 0) return runDefaults({ measure: opts.measure })

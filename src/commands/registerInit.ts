@@ -21,7 +21,7 @@ async function multiselect(message: string, choices: Choice[]): Promise<string[]
 type InitCliOptions = {
   defaultsOnly?: boolean
   yes?: boolean
-  check: string[]
+  select: string[]
   claude?: boolean
   agents?: boolean
 }
@@ -32,7 +32,7 @@ async function resolveSelections(opts: InitCliOptions): Promise<{ checks: string
     const targets: AgentTarget[] = []
     if (opts.claude !== false) targets.push('claude')
     if (opts.agents) targets.push('agents')
-    return { checks: opts.check.length > 0 ? opts.check : defaultChecks().map((c) => c.name), targets }
+    return { checks: opts.select.length > 0 ? opts.select : defaultChecks().map((c) => c.name), targets }
   }
 
   const checks = await multiselect(
@@ -65,7 +65,7 @@ export function registerInit(program: Command): void {
     .description('Scaffold verifications and agent commands into this project')
     .option('--defaults-only', 'do not write verify:* scripts; rely on `verify` built-in defaults')
     .option('--yes', 'non-interactive: use flag selections (or defaults) without prompting')
-    .option('--check <name>', 'preselect a check (repeatable, non-interactive)', collect, [])
+    .option('--select <name>', 'preselect a check by name (repeatable, non-interactive)', collect, [])
     .option('--no-claude', 'do not write .claude/ files (non-interactive)')
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
     .action(async (opts: InitCliOptions) => {

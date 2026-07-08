@@ -53,18 +53,17 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "fix": "run-s lint:fix format",
     "verify": "node src/cli.ts",
-    "verify:lint": "oxlint .",
-    "verify:format": "oxfmt --check .",
-    "verify:check-types": "tsc --noEmit",
+    "verify:lint": "node src/cli.ts lint",
+    "verify:format": "node src/cli.ts format",
+    "verify:check-types": "node src/cli.ts check-types",
     "verify:complexity": "node src/cli.ts complexity --threshold 50 \"src/**/*.ts\"",
     "verify:comment-block": "node src/cli.ts comment-block --max-lines 1 --pushback \"src/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
     "audit": "better-npm-audit audit",
-    "prepublishOnly": "run-s build"
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "commander": "^15.0.0",

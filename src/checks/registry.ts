@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+
 import { runBlockComments } from './block-comments.ts'
 import { runCommentBlock } from './comment-block.ts'
 import { runComplexity } from './complexity.ts'
@@ -26,32 +28,49 @@ export const CHECKS: Check[] = [
   nativeCheck('hardcoded-colors', 'Fail on literal hex / 0x colour values in source', true, () => runHardcodedColors()),
   nativeCheck('forbidden-strings', 'Fail on disallowed JSON config values (rules from verify config)', true, () => runForbiddenStrings()),
   defineExternalCheck({
+    name: 'lint',
+    description: 'Lint, auto-fixing locally and checking in CI (oxlint)',
+    bin: 'oxlint',
+    checkCommand: 'oxlint .',
+    fixCommand: 'oxlint --fix .',
+    devDeps: ['oxlint'],
+  }),
+  defineExternalCheck({
+    name: 'format',
+    description: 'Formatting, writing locally and checking in CI (oxfmt)',
+    bin: 'oxfmt',
+    checkCommand: 'oxfmt --check .',
+    fixCommand: 'oxfmt .',
+    devDeps: ['oxfmt'],
+  }),
+  defineExternalCheck({
+    name: 'check-types',
+    description: 'TypeScript type check (tsc --noEmit)',
+    bin: 'tsc',
+    checkCommand: 'tsc --noEmit',
+    devDeps: ['typescript'],
+    canRun: () => fs.existsSync('tsconfig.json'),
+  }),
+  defineExternalCheck({
     name: 'knip',
     description: 'Unused files, exports and dependencies',
     bin: 'knip',
-    command: 'knip --no-progress --treat-config-hints-as-errors',
+    checkCommand: 'knip --no-progress --treat-config-hints-as-errors',
     devDeps: ['knip'],
   }),
   defineExternalCheck({
     name: 'circular-deps',
     description: 'Circular dependency detection (skott)',
     bin: 'skott',
-    command: 'skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1',
+    checkCommand: 'skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1',
     devDeps: ['skott'],
   }),
   defineExternalCheck({
     name: 'duplicate-code',
     description: 'Copy-paste detection (jscpd)',
     bin: 'jscpd',
-    command: 'jscpd --format typescript,tsx --exit-code 1 --ignore "**/*.test.*" -r consoleFull src',
+    checkCommand: 'jscpd --format typescript,tsx --exit-code 1 --ignore "**/*.test.*" -r consoleFull src',
     devDeps: ['jscpd'],
-  }),
-  defineExternalCheck({
-    name: 'lint',
-    description: 'Lint + autofix (oxlint)',
-    bin: 'oxlint',
-    command: 'oxlint --fix .',
-    devDeps: ['oxlint'],
   }),
 ]
 
