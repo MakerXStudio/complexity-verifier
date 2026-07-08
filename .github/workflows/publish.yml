@@ -46,6 +46,7 @@ jobs:
           PR: ${{ steps.release.outputs.pr }}
         run: |
           if [ "$RELEASE_CREATED" = "true" ]; then
+            echo "tag=latest"
             echo "tag=latest" >> "$GITHUB_OUTPUT"
           elif [ -n "$PR" ]; then
             # Ordinary merge: prerelease the upcoming version, read from the open
@@ -53,6 +54,8 @@ jobs:
             NEXT=$(printf '%s' "$PR" | jq -r .title | grep -oE -m1 '[0-9]+\.[0-9]+\.[0-9]+')
             echo "tag=beta" >> "$GITHUB_OUTPUT"
             echo "version=${NEXT}-beta.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+            echo "tag=beta"
+            echo "version=${NEXT}-beta.${{ github.run_number }}"
           fi
 
   publish:
