@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import type { FileScore } from './analyze.ts'
+import type { CommentBlockViolation } from './comments.ts'
 import { forEachFunction } from './functions.ts'
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'
 
@@ -43,6 +44,24 @@ export function printFailure(failing: readonly FileScore[], threshold: number): 
       `\nFail: ${failing.length} file(s) below threshold ${threshold}. Maintainability index (0–100) is derived from Halstead volume, cyclomatic complexity, and lines of code.\n\n⚠️  ${color.bold('Diagnose and fix one file at a time')} — do not investigate or fix multiple files in parallel. Run the CLI against a single <file> to see all metrics for one file.\n\n${color.bold('The fix is to split the file')}: move functions/responsibilities into new files so each stays small. Do NOT game the metric by deleting comments, collapsing whitespace, joining lines, or shortening names — that reduces readability without reducing complexity, and formatting/lint will often undo it anyway.`,
     ),
   )
+}
+
+const PUSHBACK =
+  '\n\n⚠️  THIS IS YOUR LAST CHANCE TO RECONSIDER BEFORE INVOLVING A HUMAN. Adding `context:` pages a real person to approve this comment. DO NOT WASTE THEIR TIME. You had BETTER BE RIGHT that this comment is genuinely necessary — that it explains *why*, not *what*, and that the code cannot simply be made self-explanatory. If in doubt, delete the comment.'
+
+/** Report comment blocks longer than the configured maximum. `warn` prints without failing; `pushback` adds AI back-pressure framing. */
+export function printCommentBlockReport(
+  violations: readonly CommentBlockViolation[],
+  maxLines: number,
+  opts: { pushback: boolean; warn: boolean },
+): void {
+  const list = violations.map((v) => `  ${v.file}:${v.line} → ${v.lines} lines`).join('\n')
+  const message = `\n${opts.warn ? 'Warn' : 'Fail'}: ${violations.length} comment block(s) longer than ${maxLines} line(s).\n${list}\n\n${color.bold('Comments should explain *why*, not narrate *what*.')} Long comment blocks that describe implementation rot as the code changes, mislead future readers (and LLMs), and inflate complexity. Prefer self-documenting code: better names, smaller functions.\n\nIf the comment is genuinely durable context the code cannot express, prefix its first line with \`context:\` to keep it. JSDoc (\`/** … */\`) is always allowed.${opts.pushback ? PUSHBACK : ''}`
+  if (opts.warn) {
+    console.warn(color.yellow(message))
+  } else {
+    console.error(color.red(message))
+  }
 }
 
 function printSloc(file: string, content: string): void {

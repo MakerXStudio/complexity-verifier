@@ -9,6 +9,7 @@ export {
   resolvePattern,
   scoreFiles,
 } from './analyze.ts'
+export { type CommentBlockViolation, findLongCommentBlocks } from './comments.ts'
 export { type FunctionCallback, forEachFunction } from './functions.ts'
 export {
   calculateCyclomaticComplexity,
