@@ -35,6 +35,8 @@ export type ExternalCheckSpec = {
   fixCommand?: string
   devDeps: string[]
   recommended?: boolean
+  /** Docs / config reference for the underlying tool, surfaced when the check fails. */
+  docs?: string
   /** Extra guard beyond bin presence (e.g. require a tsconfig). */
   canRun?: () => boolean
 }
@@ -42,6 +44,15 @@ export type ExternalCheckSpec = {
 /** Pick the command for the run mode: the fix command only in fix mode and only when the check is fixable. */
 export function selectCommand(spec: Pick<ExternalCheckSpec, 'checkCommand' | 'fixCommand'>, mode: CheckMode): string {
   return mode === 'fix' && spec.fixCommand ? spec.fixCommand : spec.checkCommand
+}
+
+/**
+ * The line printed when an external check fails: names the tool (checks are named for their function, so the
+ * tool is otherwise hidden), the exact command that ran, and where to configure it — so an agent can set up
+ * the tool's config file (e.g. knip.json) without guessing.
+ */
+export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin' | 'docs'>, command: string): string {
+  return `↳ ${spec.name} uses ${spec.bin}: ran \`${command}\`. Configure ${spec.bin}${spec.docs ? ` — ${spec.docs}` : ''}.`
 }
 
 /** Build a Check that shells out to an external tool, skipping gracefully when the tool cannot run. */
@@ -64,6 +75,8 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       }
       const command = selectCommand(spec, resolveMode())
       const code = await runCommand(command, { env: envWithLocalBin() })
+      // Only on failure — passing runs stay silent to save tokens.
+      if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
       return { name: spec.name, ok: code === 0 }
     },
   }

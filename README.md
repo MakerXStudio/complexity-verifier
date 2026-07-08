@@ -96,6 +96,8 @@ Flags on the bare `verifyx` command:
 
 External checks shell out to their tool and **skip gracefully when it is not installed** — `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
+Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link — so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
+
 ### `complexity`
 
 ```sh

@@ -31,6 +31,8 @@ export async function runAll(opts: RunAllOptions = {}): Promise<number> {
     console.log(color.heading(`▶ ${check.name}`))
     const override = resolveOverride(entries, check.name, mode)
     const ok = override ? (await runCommand(override.command, { cwd: override.cwd })) === 0 : (await check.runDefault()).ok
+    // On an override failure, show the script that actually ran (only on failure — passing runs stay silent).
+    if (override && !ok) console.error(color.dim(`↳ ${check.name}: ran \`${override.command}\` (override)`))
     results.push({ name: check.name, ok })
     records.push({ script: check.name, code: ok ? 0 : 1, durationMs: Date.now() - checkStart })
     console.log()

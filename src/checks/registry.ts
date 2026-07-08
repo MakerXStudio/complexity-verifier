@@ -35,6 +35,7 @@ export const CHECKS: Check[] = [
     fixCommand: 'oxlint --fix .',
     devDeps: ['oxlint'],
     recommended: true,
+    docs: 'https://oxc.rs/docs/guide/usage/linter.html',
   }),
   defineExternalCheck({
     name: 'format',
@@ -44,6 +45,7 @@ export const CHECKS: Check[] = [
     fixCommand: 'oxfmt .',
     devDeps: ['oxfmt'],
     recommended: true,
+    docs: 'https://oxc.rs',
   }),
   defineExternalCheck({
     name: 'check-types',
@@ -53,6 +55,7 @@ export const CHECKS: Check[] = [
     devDeps: ['typescript'],
     canRun: () => fs.existsSync('tsconfig.json'),
     recommended: true,
+    docs: 'https://www.typescriptlang.org/tsconfig',
   }),
   defineExternalCheck({
     name: 'unused-code',
@@ -60,6 +63,7 @@ export const CHECKS: Check[] = [
     bin: 'knip',
     checkCommand: 'knip --no-progress --treat-config-hints-as-errors',
     devDeps: ['knip'],
+    docs: 'https://knip.dev/reference/configuration',
   }),
   defineExternalCheck({
     name: 'circular-deps',
@@ -67,6 +71,7 @@ export const CHECKS: Check[] = [
     bin: 'skott',
     checkCommand: 'skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1',
     devDeps: ['skott'],
+    docs: 'https://github.com/antoine-coulon/skott',
   }),
   defineExternalCheck({
     name: 'duplicate-code',
@@ -74,6 +79,7 @@ export const CHECKS: Check[] = [
     bin: 'jscpd',
     checkCommand: 'jscpd --format typescript,tsx --exit-code 1 --ignore "**/*.test.*" -r consoleFull src',
     devDeps: ['jscpd'],
+    docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
   }),
 ]
 
