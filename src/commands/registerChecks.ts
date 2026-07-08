@@ -15,7 +15,7 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
 
-/** Register a directly-invocable subcommand for every built-in check (`verify complexity`, `verify knip`, …). */
+/** Register a directly-invocable subcommand for every built-in check (`verifyx complexity`, `verifyx knip`, …). */
 export function registerChecks(program: Command): void {
   program
     .command('complexity')

@@ -15,7 +15,7 @@ function nativeCheck(name: string, description: string, inDefaultRun: boolean, r
     kind: 'native',
     inDefaultRun,
     // Native checks scaffold as a call back into this CLI's own subcommand.
-    scaffold: { script: `verify ${name}` },
+    scaffold: { script: `verifyx ${name}` },
     runDefault: async () => run(),
   }
 }

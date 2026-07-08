@@ -15,7 +15,7 @@ const pkg = require('../package.json') as { version: string }
 const program = new Command()
 
 program
-  .name('verify')
+  .name('verifyx')
   .description('A growing collection of code verifications that give AI coding agents back-pressure against writing hard-to-maintain code.')
   .version(pkg.version)
   .option('--all', 'run all verify:* scripts, ignoring diff-based filters')

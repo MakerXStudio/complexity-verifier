@@ -26,11 +26,11 @@ describe('check registry', () => {
     const knip = getCheck('knip')
     expect(knip?.kind).toBe('external')
     expect(knip?.scaffold.devDeps).toContain('knip')
-    expect(knip?.scaffold.script).toBe('verify knip')
+    expect(knip?.scaffold.script).toBe('verifyx knip')
   })
 
   it('scaffolds native checks back into the verify CLI', () => {
-    expect(getCheck('complexity')?.scaffold.script).toBe('verify complexity')
+    expect(getCheck('complexity')?.scaffold.script).toBe('verifyx complexity')
   })
 
   it('returns undefined for unknown checks', () => {

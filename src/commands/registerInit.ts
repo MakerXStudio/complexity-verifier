@@ -48,22 +48,22 @@ async function resolveSelections(opts: InitCliOptions): Promise<{ checks: string
 
 function report(result: InitResult, defaultsOnly: boolean): void {
   if (defaultsOnly) {
-    console.log(color.dim('\nDefaults-only: no verify:* scripts written — `verify` will run the built-in default set.'))
+    console.log(color.dim('\nDefaults-only: no verify:* scripts written — `verifyx` will run the built-in default set.'))
   }
   console.log(color.green(`\nScripts added: ${result.addedScripts.join(', ') || '(none new)'}`))
   for (const file of result.agentFiles) {
     if (file.action === 'unchanged') continue
     console.log(`  ${file.action === 'created' ? '+' : '~'} ${file.path}`)
   }
-  console.log(color.dim('\nRun `verify` to run your verifications.'))
+  console.log(color.dim('\nRun `verifyx` (or `npm run verify`) to run your verifications.'))
 }
 
-/** `verify init` — interactively scaffold checks + agent files into the current project. */
+/** `verifyx init` — interactively scaffold checks + agent files into the current project. */
 export function registerInit(program: Command): void {
   program
     .command('init')
     .description('Scaffold verifications and agent commands into this project')
-    .option('--defaults-only', 'do not write verify:* scripts; rely on `verify` built-in defaults')
+    .option('--defaults-only', 'do not write verify:* scripts; rely on `verifyx` built-in defaults')
     .option('--yes', 'non-interactive: use flag selections (or defaults) without prompting')
     .option('--select <name>', 'preselect a check by name (repeatable, non-interactive)', collect, [])
     .option('--no-claude', 'do not write .claude/ files (non-interactive)')

@@ -52,10 +52,10 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     kind: 'external',
     inDefaultRun: spec.inDefaultRun ?? true,
     // Scaffold as a call into this CLI so fix-vs-check lives in one place, not the consumer's script.
-    scaffold: { script: `verify ${spec.name}`, devDeps: spec.devDeps },
+    scaffold: { script: `verifyx ${spec.name}`, devDeps: spec.devDeps },
     async runDefault(): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {
-        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`verify init\`)`))
+        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`verifyx init\`)`))
         return { name: spec.name, ok: true, skipped: true }
       }
       if (spec.canRun && !spec.canRun()) {

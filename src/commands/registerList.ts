@@ -3,7 +3,7 @@ import type { Command } from 'commander'
 import { CHECKS } from '../checks/registry.ts'
 import { color } from '../shared/color.ts'
 
-/** `verify list` — show every built-in check, its kind, and whether it runs in the default set. */
+/** `verifyx list` — show every built-in check, its kind, and whether it runs in the default set. */
 export function registerList(program: Command): void {
   program
     .command('list')

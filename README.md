@@ -17,41 +17,50 @@ Install as a **pinned dev dependency** — never globally. A locked version mean
 npm install --save-dev @makerx/verify
 ```
 
-Requires Node.js >= 24. Invoke it via an npm script or `npx verify` — not a global binary on `PATH`.
+Requires Node.js >= 24. Invoke it via an npm script or `npx verifyx` — not a global binary on `PATH`.
 
 The quickest way to wire it into a project:
 
 ```sh
-npx verify init
+npx verifyx init
 ```
 
-## How `verify` decides what to run
+> ### Why is the command `verifyx`, not `verify`?
+>
+> The package is `@makerx/verify`, but the CLI binary is **`verifyx`**. `verify` is a built-in `cmd.exe`
+> command on Windows, and both `npm run` script bodies and `npx` resolve commands through `cmd` there — so a
+> bare `verify` runs the Windows builtin ("VERIFY is off."), not this tool. Renaming the binary to `verifyx`
+> (a nod to the fact it **fixes** as well as verifies) makes every invocation — `npx verifyx`, npm scripts,
+> and a typed `verifyx` — work identically on macOS, Linux, and Windows. Your npm **script** can still be named
+> `verify` (that's a script lookup, not command resolution), so `npm run verify` works everywhere.
 
-Running `verify` with no subcommand follows a convention:
+## How `verifyx` decides what to run
+
+Running `verifyx` with no subcommand follows a convention:
 
 - **No `verify:*` scripts in `package.json`** → it runs the **built-in default checks** in their default modes. Each check degrades gracefully — it passes or skips when it does not apply (no files, no diff, tool not installed, no rules configured).
 - **`verify:*` scripts present** → it runs **those** in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code). Add `--verbose` to stream everything.
 
-You take control by adding `verify:*` scripts. Prefer calling the built-ins (`verify <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
+You take control by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
 ```jsonc
 {
   "scripts": {
-    "verify": "verify",
-    "verify:complexity": "verify complexity --threshold 50 \"src/**/*.ts\"",
-    "verify:lint": "verify lint",
+    "verify": "verifyx",
+    "verify:complexity": "verifyx complexity --threshold 50 \"src/**/*.ts\"",
+    "verify:lint": "verifyx lint",
     "verify:custom": "node ./scripts/my-check.mjs",
   },
 }
 ```
 
-Run a single built-in directly: `verify complexity`, `verify knip`, … and `verify list` shows them all.
+Run a single built-in directly: `verifyx complexity`, `verifyx knip`, … and `verifyx list` shows them all.
 
 ### Fix locally, check in CI
 
-Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verify` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Override explicitly with `verify --fix` or `verify --check`.
+Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verifyx` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Override explicitly with `verifyx --fix` or `verifyx --check`.
 
-Flags on the bare `verify` command:
+Flags on the bare `verifyx` command:
 
 - `--check` / `--fix` — force check-only or auto-fix (defaults: fix locally, check under CI).
 - `--measure` — print a status/duration summary table.
@@ -74,12 +83,12 @@ Flags on the bare `verify` command:
 | `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                   |
 | `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                        |
 
-External checks shell out to their tool and **skip gracefully when it is not installed** — `verify init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verify` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
+External checks shell out to their tool and **skip gracefully when it is not installed** — `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
 ### `complexity`
 
 ```sh
-verify complexity --threshold 50 "src/**/*.ts"
+verifyx complexity --threshold 50 "src/**/*.ts"
 ```
 
 - `[pattern]` — glob, directory, or file. Defaults to `{src,server,shared}/**/*.ts`.
@@ -91,7 +100,7 @@ A file's score is the **minimum MI across its functions**. When exactly one file
 ### `comment-block`
 
 ```sh
-verify comment-block --max-lines 2 --pushback "src/**/*.ts"
+verifyx comment-block --max-lines 2 --pushback "src/**/*.ts"
 ```
 
 - `--max-lines <n>` — fail on comment blocks longer than `n` lines (default 2).
@@ -108,12 +117,12 @@ const timeoutMs = timeout * 1000
 
 ## Scaffolding a project
 
-### `verify init`
+### `verifyx init`
 
 Interactively wire verifications and agent files into the current project:
 
 ```sh
-verify init
+verifyx init
 ```
 
 It lets you multi-select **checks** and **agent targets** (Claude `.claude/`, and/or cross-vendor `.agent-skills/`), then:
@@ -127,13 +136,13 @@ Options:
 - `--defaults-only` — do **not** write `verify:*` scripts; rely on `verify`'s built-in defaults (still installs opted-in tools and writes agent files).
 - `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
-### `verify upgrade-docs`
+### `verifyx upgrade-docs`
 
 Idempotently create/refresh the managed agent files (created / updated / unchanged; refuses to write through symlinks):
 
 ```sh
-verify upgrade-docs            # both targets
-verify upgrade-docs --no-agents  # only .claude/
+verifyx upgrade-docs             # both targets
+verifyx upgrade-docs --no-agents  # only .claude/
 ```
 
 ## Configuration
@@ -151,7 +160,7 @@ Some checks read per-repo config from `verify.config.json`, or a `verify` key in
 }
 ```
 
-`filters` scopes a `verify:*` script to a diff glob: it is skipped unless a changed file matches (bypass with `verify --all`).
+`filters` scopes a `verify:*` script to a diff glob: it is skipped unless a changed file matches (bypass with `verifyx --all`).
 
 ## CI/CD
 
@@ -159,7 +168,7 @@ Because it is a pinned dev dependency, CI runs the identical tool:
 
 ```yaml
 - run: npm ci
-- run: npx verify --measure
+- run: npm run verify
 ```
 
 ## Programmatic API

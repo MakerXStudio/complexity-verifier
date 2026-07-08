@@ -25,9 +25,9 @@ describe('applyInit', () => {
     const result = applyInit({ cwd: dir, checks: ['complexity', 'knip'], targets: ['claude'], defaultsOnly: false })
 
     const scripts = readScripts()
-    expect(scripts['verify:complexity']).toBe('verify complexity')
+    expect(scripts['verify:complexity']).toBe('verifyx complexity')
     expect(scripts['verify:knip']).toContain('knip')
-    expect(scripts.verify).toBe('verify')
+    expect(scripts.verify).toBe('verifyx')
     expect(result.devDeps).toContain('knip')
     expect(fs.existsSync(path.join(dir, '.claude', 'commands', 'verify.md'))).toBe(true)
     expect(fs.existsSync(path.join(dir, '.claude', 'skills', 'verify', 'SKILL.md'))).toBe(true)

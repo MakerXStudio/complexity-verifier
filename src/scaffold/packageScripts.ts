@@ -18,7 +18,7 @@ export function addVerifyScripts(packageJsonPath: string, scripts: Record<string
     }
   }
   if (existing.verify === undefined) {
-    existing.verify = 'verify'
+    existing.verify = 'verifyx'
     added.push('verify')
   }
 
