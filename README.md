@@ -137,7 +137,7 @@ Interactively wire verifications and the agent integration into the current proj
 verifyx init
 ```
 
-It lets you multi-select **checks** and **agent targets** (Claude and/or other agents), then:
+It first asks how `verify` should run — **run all built-in checks** (`verifyx all`, no `verify:*` scripts) or **pick specific checks** to wire up. Then you multi-select **agent targets** (Claude and/or other agents) — and, if you chose to pick, the **checks** — after which it:
 
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
 - installs the external checks' tools as `--save-dev`,
@@ -149,7 +149,7 @@ The skill auto-triggers on "verify"/"run checks", so agents run the checks proac
 
 Options:
 
-- `--defaults-only` — do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
+- `--defaults-only` — the non-interactive form of the "run all built-in checks" choice: do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
 - `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
 ### `verifyx upgrade-docs`

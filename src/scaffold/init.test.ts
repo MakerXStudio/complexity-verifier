@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { CHECKS } from '../checks/registry.ts'
 import { applyInit } from './init.ts'
 
 let dir: string
@@ -44,6 +45,15 @@ describe('applyInit', () => {
     expect(result.devDeps).toContain('knip')
     expect(fs.existsSync(path.join(dir, '.agent-skills', 'verify', 'SKILL.md'))).toBe(true)
     expect(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf-8')).toContain('npm run verify')
+  })
+
+  it('defaults-only with every check installs all external devDeps but writes only the verify script', () => {
+    const result = applyInit({ cwd: dir, checks: CHECKS.map((c) => c.name), targets: [], defaultsOnly: true })
+
+    expect(Object.keys(readScripts())).toEqual(['verify'])
+    expect(readScripts().verify).toBe('verifyx all')
+    // Every external check's tool is installed, so `verifyx all` can actually run them.
+    expect(result.devDeps).toEqual(expect.arrayContaining(['knip', 'jscpd', 'skott']))
   })
 
   it('does not clobber an existing verify:* script', () => {

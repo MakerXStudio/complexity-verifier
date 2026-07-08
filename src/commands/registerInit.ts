@@ -14,8 +14,8 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
 
-async function multiselect(message: string, choices: Choice[]): Promise<string[]> {
-  const response = (await enquirer.prompt({ type: 'multiselect', name: 'selected', message, choices })) as { selected: string[] }
+async function ask<T>(type: 'select' | 'multiselect', message: string, choices: Choice[]): Promise<T> {
+  const response = (await enquirer.prompt({ type, name: 'selected', message, choices })) as { selected: T }
   return response.selected
 }
 
@@ -27,24 +27,41 @@ type InitCliOptions = {
   agents?: boolean
 }
 
-async function resolveSelections(opts: InitCliOptions): Promise<{ checks: string[]; targets: AgentTarget[] }> {
+type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean }
+
+async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
   const nonInteractive = !!opts.yes || !process.stdin.isTTY
   if (nonInteractive) {
     const targets: AgentTarget[] = []
     if (opts.claude !== false) targets.push('claude')
     if (opts.agents) targets.push('agents')
-    return { checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name), targets }
+    return {
+      checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
+      targets,
+      defaultsOnly: !!opts.defaultsOnly,
+    }
   }
 
-  const checks = await multiselect(
-    'Select checks to wire up',
-    CHECKS.map((c) => ({ name: c.name, message: `${c.name} — ${c.description}`, enabled: c.recommended })),
-  )
-  const targets = (await multiselect('Select agent targets', [
+  // context: an up-front choice — run everything with defaults (verifyx all, no verify:* scripts), or hand-pick checks.
+  const mode = await ask<string>('select', 'How should verify run?', [
+    { name: 'defaults', message: 'Run all built-in checks (verifyx all) with default options', enabled: true },
+    { name: 'pick', message: 'Pick specific checks to wire up as verify:* scripts' },
+  ])
+  const defaultsOnly = mode === 'defaults'
+
+  // Defaults-only still passes every check so applyInit installs all their devDeps; hand-picking narrows the list.
+  const checks = defaultsOnly
+    ? CHECKS.map((c) => c.name)
+    : await ask<string[]>(
+        'multiselect',
+        'Select checks to wire up',
+        CHECKS.map((c) => ({ name: c.name, message: `${c.name} — ${c.description}`, enabled: c.recommended })),
+      )
+  const targets = await ask<AgentTarget[]>('multiselect', 'Select agent targets', [
     { name: 'claude', message: 'Claude (.claude/skills + CLAUDE.md)', enabled: true },
     { name: 'agents', message: 'Other agents (.agent-skills + AGENTS.md)', enabled: false },
-  ])) as AgentTarget[]
-  return { checks, targets }
+  ])
+  return { checks, targets, defaultsOnly }
 }
 
 function report(result: InitResult, defaultsOnly: boolean): void {
@@ -71,8 +88,7 @@ export function registerInit(program: Command): void {
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
-      const defaultsOnly = !!opts.defaultsOnly
-      const { checks, targets } = await resolveSelections(opts)
+      const { checks, targets, defaultsOnly } = await resolveSelections(opts)
 
       const result = applyInit({ cwd, checks, targets, defaultsOnly })
 
