@@ -1,23 +1,30 @@
 # @makerx/verify
 
-A growing collection of code **verifications** that give AI coding agents back-pressure against writing hard-to-maintain code — and improve code quality for everyone.
+**One command your AI agent runs after every change — and your CI runs on every push.** `verifyx` bundles a project's checks (lint, format, type-check, complexity, dead code, and more) behind a single command designed to give AI coding agents real back-pressure against shipping hard-to-maintain code, while keeping quality high for everyone.
+
+What makes it worth wiring in:
+
+- **Auto-fixes locally, fails in CI — same command.** Run it on your machine and it _fixes_ what it can (lint, formatting) instead of just complaining. Run it under CI and the identical command is check-only, so a PR can't merge with problems that should have been fixed.
+- **Silent when green, so it's cheap to loop.** A passing run prints nothing and exits `0` — no output to burn an agent's tokens or bury the one failure that matters. Agents can run it as often as they like.
+- **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact command, and a docs link — so the agent (or you) knows what to fix and how, instead of guessing.
+- **Convention over configuration.** Checks are just `verify:*` npm scripts run in parallel. Add, drop, or override any of them — no bespoke config format to learn.
 
 `verify` ships both:
 
-- a **CLI** that orchestrates a set of checks by convention that are designed to be executed by AI agents as well as CI servers, and
-- a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run those checks and fix what they report.
+- a **CLI** (`verifyx`) that orchestrates those checks by convention, for AI agents and CI servers alike, and
+- a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run the checks and fix what they report.
 
 Complexity was the first check. It is now just one of several, and the set grows over time.
 
 ## Install
 
-Install as a **pinned dev dependency** — never globally. A locked version means the exact same tool runs on your machine and in CI/CD:
+Install it as a **dev dependency** so the version is pinned in `package.json` — that way the exact same tool runs on your machine and in CI/CD:
 
 ```sh
 npm install --save-dev @makerx/verify
 ```
 
-Requires Node.js >= 24. Invoke it via an npm script or `npx verifyx` — not a global binary on `PATH`.
+Requires Node.js >= 24. Invoke it via an npm script or `npx verifyx`.
 
 The quickest way to wire it into a project:
 
@@ -48,7 +55,7 @@ There are three ways to invoke the CLI, from "all my checks" down to "one specif
 | Command           | What it runs                                                                                         |
 | ----------------- | ---------------------------------------------------------------------------------------------------- |
 | `verifyx`         | Every `verify:*` script — the set of checks you've curated (built-in and custom). None defined → nothing runs. |
-| `verifyx all`     | Every built-in check, with default options (ignores your `verify:*` list, except as overrides).      |
+| `verifyx all`     | Every built-in check with default options; a matching `verify:<name>` script overrides that built-in. |
 | `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                 |
 
 ### `verifyx` — run your curated checks
@@ -72,7 +79,7 @@ You curate your checks by adding `verify:*` scripts. Prefer calling the built-in
 
 ### `verifyx all` — run every built-in
 
-`verifyx all` skips your curated list and runs **every** built-in check with its default options — a quick "run everything" without wiring up scripts. Where you've defined a `verify:<name>` script, it **overrides** the matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
+`verifyx all` runs **every** built-in check with its default options — a quick "run everything" without wiring up scripts. Where you've defined a `verify:<name>` script for one of them, it **overrides** that built-in, so you can swap a single check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step. (Custom `verify:*` scripts with no matching built-in aren't run by `verifyx all` — use bare `verifyx` for those.)
 
 ### Fix locally, check in CI
 
