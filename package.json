@@ -1,32 +1,35 @@
 {
   "name": "@makerx/verify",
   "version": "0.0.0",
-  "description": "Maintainability-index checker for TypeScript: computes cyclomatic complexity, Halstead volume, SLOC and a maintainability index, and fails files below a threshold.",
+  "description": "A growing collection of code verifications that give AI coding agents back-pressure against writing hard-to-maintain code. Ships a CLI that orchestrates native + external checks by convention, plus a scaffolder for the checks and agent commands.",
   "keywords": [
+    "ai",
+    "back-pressure",
     "cli",
     "code-quality",
     "complexity",
-    "cyclomatic-complexity",
-    "halstead",
+    "knip",
     "maintainability",
-    "maintainability-index",
-    "typescript"
+    "typescript",
+    "verification",
+    "verify"
   ],
-  "homepage": "https://github.com/MakerXStudio/complexity-verifier#readme",
+  "homepage": "https://github.com/MakerXStudio/verify#readme",
   "bugs": {
-    "url": "https://github.com/MakerXStudio/complexity-verifier/issues"
+    "url": "https://github.com/MakerXStudio/verify/issues"
   },
   "license": "MIT",
   "author": "MakerX",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/MakerXStudio/complexity-verifier.git"
+    "url": "git+https://github.com/MakerXStudio/verify.git"
   },
   "bin": {
-    "complexity-verifier": "./dist/cli.mjs"
+    "verify": "./dist/cli.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "templates"
   ],
   "type": "module",
   "main": "./dist/index.mjs",
@@ -50,8 +53,11 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "verify": "run-p lint:fix format verify:complexity",
-    "verify:complexity": "node src/cli.ts --threshold 50 --max-comment-block-lines 1 --comment-block-pushback \"src/**/*.ts\"",
+    "verify": "node src/cli.ts",
+    "verify:lint": "oxlint --fix .",
+    "verify:format": "oxfmt .",
+    "verify:complexity": "node src/cli.ts complexity --threshold 50 \"src/**/*.ts\"",
+    "verify:comment-block": "node src/cli.ts comment-block --max-lines 1 --pushback \"src/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
@@ -59,6 +65,8 @@
     "prepublishOnly": "run-s build"
   },
   "dependencies": {
+    "commander": "^14.0.1",
+    "enquirer": "^2.4.1",
     "minimatch": "^10.2.5",
     "typescript": "^6.0.3"
   },
@@ -74,6 +82,26 @@
     "rollup": "^4.62.2",
     "tslib": "^2.8.1",
     "vitest": "^4.1.10"
+  },
+  "peerDependencies": {
+    "@jscpd/finder": "^4.0.1",
+    "jscpd": "^4.0.5",
+    "knip": "^5.64.2",
+    "skott": "^0.35.4"
+  },
+  "peerDependenciesMeta": {
+    "@jscpd/finder": {
+      "optional": true
+    },
+    "jscpd": {
+      "optional": true
+    },
+    "knip": {
+      "optional": true
+    },
+    "skott": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=24"
