@@ -36,21 +36,19 @@ npx verifyx init
 
 ## How `verifyx` decides what to run
 
-Your project's `verify:*` scripts **are** the gate, and `verifyx` runs exactly what you define — nothing implicit:
+There are three ways to invoke it, from "my curated gate" to "one specific check":
 
-- **`verifyx`** (no subcommand) runs your `verify:*` scripts in parallel. A clean run is **silent** — no preamble, no per-script output, just exit `0` — so it's cheap to run in a loop or an agent. Each script's output is buffered and shown **only if it fails**. Add `--verbose` to stream everything, or `--measure` for a status/duration table. With **no `verify:*` scripts, nothing runs.**
-- **`verifyx all`** runs **every built-in check** (the explicit "run everything"). A `verify:<name>` script **overrides** its matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
+| Command           | What it runs                                                                            |
+| ----------------- | --------------------------------------------------------------------------------------- |
+| `verifyx`         | Your project's `verify:*` scripts — the gate you curate. No `verify:*` scripts → nothing runs. |
+| `verifyx all`     | Every built-in check, with default options.                                             |
+| `verifyx <check>` | A single built-in, e.g. `verifyx complexity`. `verifyx list` shows them all.            |
 
-**Fix/check overrides.** Alongside a `verify:<name>` (check-mode) script you can define a `verify:<name>:fix` variant. `verifyx` runs the `:fix` variant in fix mode (locally) and the base in check mode (CI), and never both — so an override with a non-mode-aware tool still fixes locally and only checks in CI:
+### `verifyx` — your curated gate
 
-```jsonc
-{
-  "scripts": {
-    "verify:lint": "eslint .",
-    "verify:lint:fix": "eslint . --fix",
-  },
-}
-```
+`verifyx` with no subcommand is what you run day-to-day and in CI. It runs every `verify:*` script in `package.json` **in parallel**, and nothing implicit — the scripts you define **are** the gate.
+
+A clean run is **completely silent**: no preamble, no per-script output, just exit `0`. Each script's output is buffered and printed **only if that script fails**, so `verifyx` is cheap to run in a loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table.)
 
 You curate the gate by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
@@ -65,11 +63,24 @@ You curate the gate by adding `verify:*` scripts. Prefer calling the built-ins (
 }
 ```
 
-Run a single built-in directly: `verifyx complexity`, `verifyx unused-code`, … and `verifyx list` shows them all.
+### `verifyx all` — run every built-in
+
+`verifyx all` skips your curated list and runs **every** built-in check with its default options — a quick "run everything" without wiring up scripts. Where you've defined a `verify:<name>` script, it **overrides** the matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
 ### Fix locally, check in CI
 
-Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verifyx` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Override explicitly with `verifyx --fix` or `verifyx --check`.
+Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verifyx` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Force a mode with `verifyx --fix` or `verifyx --check`.
+
+To give a script-based override that same split, pair a `verify:<name>` (check-mode) script with a `verify:<name>:fix` variant. `verifyx` runs the `:fix` variant locally and the base script in CI — never both — so even an override wrapping a tool that doesn't know about fix-vs-check still fixes locally and only checks in CI:
+
+```jsonc
+{
+  "scripts": {
+    "verify:lint": "eslint .",
+    "verify:lint:fix": "eslint . --fix",
+  },
+}
+```
 
 Flags on the bare `verifyx` command:
 
@@ -88,7 +99,7 @@ Flags on the bare `verifyx` command:
 | `lint`              | external | Lint — auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                       |
 | `format`            | external | Formatting — writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                      |
 | `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                           |
-| `knip`              | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                        |
+| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                        |
 | `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                 |
 | `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                      |
 
@@ -106,7 +117,15 @@ verifyx complexity --threshold 50 "src/**/*.ts"
 - `--threshold <n>` — fail when any file's minimum maintainability index is below `n`.
 - `--ignore <glob>` — exclude files (repeatable; appended to the default `**/*test.ts*`).
 
-A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown is printed instead of the gate — handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
+It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes three metrics — **cyclomatic complexity** (independent paths through the code), **Halstead volume** (a size measure derived from the operators and operands used), and **SLOC** (source lines of code, excluding blanks and comments) — then combines them into a single **maintainability index (MI)**, a 0–100 score where lower means harder to maintain:
+
+```
+MI = 171 - 5.2 * ln(HalsteadVolume) - 0.23 * CyclomaticComplexity - 16.2 * ln(SLOC)
+```
+
+The result is clamped to 0–100; a function with zero Halstead volume or zero SLOC scores 100. As a rough guide: **> 65** is good, **50–65** is moderate (watch for growth), and **< 50** is hard to maintain. Thresholds are a matter of taste — pick one that fits your codebase and enforce it in CI.
+
+A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown (SLOC, cyclomatic complexity, Halstead metrics, and MI) is printed instead of the gate — handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
 
 ### `comments`
 
