@@ -1,6 +1,6 @@
 # @makerx/complexity-verifier
 
-A maintainability-index checker for TypeScript. It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes:
+A maintainability-index checker for TypeScript aimed at providing better back-pressure to AI agents. It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes:
 
 - **Cyclomatic complexity** — the number of independent paths through the code.
 - **Halstead volume** — a size measure derived from the operators and operands used.
@@ -57,17 +57,17 @@ For larger files, start by extracting responsibilities into smaller files; then 
 The package is also usable as a library:
 
 ```ts
-import { analyzeComplexity } from '@makerx/complexity-verifier'
+import { analyzeComplexity } from "@makerx/complexity-verifier";
 
 const { results, failing, passed } = analyzeComplexity({
-  pattern: 'src/**/*.ts',
-  ignore: ['**/*.generated.ts'],
+  pattern: "src/**/*.ts",
+  ignore: ["**/*.generated.ts"],
   threshold: 50,
-})
+});
 
 if (!passed) {
   for (const { file, min, avg } of failing) {
-    console.error(`${file}: min MI ${min.toFixed(1)} (avg ${avg.toFixed(1)})`)
+    console.error(`${file}: min MI ${min.toFixed(1)} (avg ${avg.toFixed(1)})`);
   }
 }
 ```
