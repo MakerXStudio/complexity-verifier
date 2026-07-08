@@ -2,19 +2,17 @@
 
 **One command your AI agent runs after every change — and your CI runs on every push.** `verifyx` bundles a project's checks (lint, format, type-check, complexity, dead code, and more) behind a single command designed to give AI coding agents real back-pressure against shipping hard-to-maintain code, while keeping quality high for everyone.
 
+`verify` ships both:
+
+- a **CLI** (`verifyx`) that orchestrates those checks by convention, for AI agents and CI servers alike, and
+- a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run the checks and fix what they report.
+
 What makes it worth wiring in:
 
 - **Auto-fixes locally, fails in CI — same command.** Run it on your machine and it _fixes_ what it can (lint, formatting) instead of just complaining. Run it under CI and the identical command is check-only, so a PR can't merge with problems that should have been fixed.
 - **Silent when green, so it's cheap to loop.** A passing run prints nothing and exits `0` — no output to burn an agent's tokens or bury the one failure that matters. Agents can run it as often as they like.
 - **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact command, and a docs link — so the agent (or you) knows what to fix and how, instead of guessing.
 - **Convention over configuration.** Checks are just `verify:*` npm scripts run in parallel. Add, drop, or override any of them — no bespoke config format to learn.
-
-`verify` ships both:
-
-- a **CLI** (`verifyx`) that orchestrates those checks by convention, for AI agents and CI servers alike, and
-- a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run the checks and fix what they report.
-
-Complexity was the first check. It is now just one of several, and the set grows over time.
 
 ## Install
 
@@ -32,7 +30,8 @@ The quickest way to wire it into a project:
 npx verifyx init
 ```
 
-> ### Why is the command `verifyx`, not `verify`?
+> [!NOTE]
+> **Why is the command `verifyx`, not `verify`?**
 >
 > The package is `@makerx/verify`, but the CLI binary is **`verifyx`**. `verify` is a built-in `cmd.exe`
 > command on Windows, and both `npm run` script bodies and `npx` resolve commands through `cmd` there — so a
