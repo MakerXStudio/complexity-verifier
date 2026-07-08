@@ -2,5 +2,5 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "project": ["src/**/*.ts"],
   "ignoreBinaries": ["verifyx"],
-  "ignoreDependencies": ["jscpd", "skott"]
+  "ignoreDependencies": ["oxlint", "oxfmt", "jscpd", "skott"]
 }
