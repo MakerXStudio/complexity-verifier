@@ -51,11 +51,11 @@ A check is either **built-in** or **custom**:
 
 There are three ways to invoke the CLI, from "all my checks" down to "one specific check":
 
-| Command           | What it runs                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `verifyx`         | Every `verify:*` script: the checks you've curated (built-in and custom). With none defined, nothing runs.          |
+| Command           | What it runs                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `verifyx`         | Every `verify:*` script: the checks you've curated (built-in and custom). With none defined, nothing runs.               |
 | `verifyx all`     | Every built-in check with default options, plus any custom `verify:*` scripts. A `verify:<name>` overrides its built-in. |
-| `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                                |
+| `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                                     |
 
 ### `verifyx`: run your curated checks
 
@@ -103,18 +103,18 @@ Flags on the bare `verifyx` command:
 
 ## Built-in checks
 
-| Check               | Kind     | What it catches                                                                                                                                                                                                                          |
-| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                              |
-| `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to also fail any comment on a line you changed vs `HEAD`.  |
-| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                              |
-| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                        |
-| `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                    |
-| `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                     |
-| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                          |
-| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                      |
-| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                               |
-| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                    |
+| Check               | Kind     | What it catches                                                                                                                                                                                                                              |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                                  |
+| `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to also fail any comment on a line you changed vs `HEAD`. |
+| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                   |
+| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                             |
+| `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                        |
+| `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                          |
+| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                              |
+| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                           |
+| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                    |
+| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                         |
 
 External checks shell out to their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
