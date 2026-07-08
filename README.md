@@ -48,7 +48,7 @@ There are three ways to invoke the CLI, from "all my checks" down to "one specif
 
 ### `verifyx` — run your curated checks
 
-`verifyx` with no subcommand is what you run day-to-day and in CI. It runs every `verify:*` script in parallel — nothing implicit, the scripts you define **are** the gate.
+With no subcommand, `verifyx` runs every `verify:*` script in parallel — nothing implicit, the scripts you define **are** the gate. This is the mode a top-level `"verify": "verifyx"` script points at, so `npm run verify` runs your whole gate.
 
 A clean run is **completely silent**: no preamble, no per-script output, just exit `0`. Each script's output is buffered and printed **only if that script fails**, so `verifyx` is cheap to run in a loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table.)
 
