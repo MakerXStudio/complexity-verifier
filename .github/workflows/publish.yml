@@ -56,6 +56,8 @@ jobs:
             echo "version=${NEXT}-beta.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
             echo "tag=beta"
             echo "version=${NEXT}-beta.${{ github.run_number }}"
+          else
+            echo "Nothing to release"
           fi
 
   publish:
