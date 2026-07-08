@@ -51,4 +51,16 @@ describe('applyInit', () => {
     applyInit({ cwd: dir, checks: ['complexity'], targets: [], defaultsOnly: false })
     expect(readScripts()['verify:complexity']).toBe('custom')
   })
+
+  it('teaches knip to ignore the external tools verifyx runs when unused-code is selected', () => {
+    applyInit({ cwd: dir, checks: ['unused-code', 'lint', 'format'], targets: [], defaultsOnly: false })
+    const knip = JSON.parse(fs.readFileSync(path.join(dir, 'knip.json'), 'utf-8')) as { ignoreDependencies?: string[] }
+    expect(knip.ignoreDependencies).toEqual(expect.arrayContaining(['oxlint', 'oxfmt']))
+    expect(knip.ignoreDependencies).not.toContain('knip') // the runner isn't flagged
+  })
+
+  it('does not create a knip config when unused-code is not selected', () => {
+    applyInit({ cwd: dir, checks: ['lint', 'format'], targets: [], defaultsOnly: false })
+    expect(fs.existsSync(path.join(dir, 'knip.json'))).toBe(false)
+  })
 })

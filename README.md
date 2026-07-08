@@ -142,7 +142,8 @@ It lets you multi-select **checks** and **agent targets** (Claude and/or other a
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
 - installs the external checks' tools as `--save-dev`,
 - writes the **`verify` skill** — the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
-- appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten).
+- appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten),
+- if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` — verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused. Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
 
 The skill auto-triggers on "verify"/"run checks", so agents run the checks proactively; the pointer reinforces it for tools that read `CLAUDE.md`/`AGENTS.md` as standing instructions.
 

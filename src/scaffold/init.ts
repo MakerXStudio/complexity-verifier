@@ -1,7 +1,9 @@
 import path from 'node:path'
 
 import { getCheck } from '../checks/registry.ts'
+import type { Check } from '../checks/types.ts'
 import { type AgentTarget, writeAgentFiles } from './agentFiles.ts'
+import { ensureKnipIgnores } from './knipConfig.ts'
 import { addVerifyScripts } from './packageScripts.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
 
@@ -35,6 +37,18 @@ export function applyInit(opts: InitOptions): InitResult {
 
   // Defaults-only wires the top `verify` script to `verifyx all` so it runs every built-in with no verify:* list.
   const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts, opts.defaultsOnly ? 'verifyx all' : 'verifyx')
+
   const agentFiles = writeAgentFiles(opts.cwd, opts.targets)
+
+  // context: with unused-code selected, teach knip to ignore the other external tools verifyx runs at runtime.
+  if (opts.checks.includes('unused-code')) {
+    const toolDeps = opts.checks
+      .map(getCheck)
+      .filter((check): check is Check => !!check && check.kind === 'external' && check.name !== 'unused-code')
+      .flatMap((check) => check.scaffold.devDeps ?? [])
+      .filter((dep) => dep !== 'typescript')
+    ensureKnipIgnores(opts.cwd, [...new Set(toolDeps)], agentFiles)
+  }
+
   return { addedScripts, devDeps: [...new Set(devDeps)], agentFiles }
 }
