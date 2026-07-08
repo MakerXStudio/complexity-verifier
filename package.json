@@ -1,6 +1,6 @@
 {
   "name": "@makerx/complexity-verifier",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Maintainability-index checker for TypeScript: computes cyclomatic complexity, Halstead volume, SLOC and a maintainability index, and fails files below a threshold.",
   "keywords": [
     "cli",
