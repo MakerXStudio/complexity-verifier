@@ -6,10 +6,10 @@ import { color } from '../shared/color.ts'
 import { type ForbiddenStringsRule, loadVerifyConfig } from '../shared/config.ts'
 import type { CheckResult } from './types.ts'
 
-export type ForbiddenStringViolation = { file: string; path: string; value: string }
+type ForbiddenStringViolation = { file: string; path: string; value: string }
 
 // Ported from https://github.com/staff0rd/assist verify/forbiddenStrings/findForbiddenStrings.ts
-export function resolveStringsAtPath(data: unknown, path: string): string[] {
+function resolveStringsAtPath(data: unknown, path: string): string[] {
   let current: unknown = data
   for (const segment of path.split('.')) {
     if (current === null || typeof current !== 'object') return []
@@ -20,7 +20,7 @@ export function resolveStringsAtPath(data: unknown, path: string): string[] {
   return []
 }
 
-export function findRuleViolations(data: unknown, rule: ForbiddenStringsRule): ForbiddenStringViolation[] {
+function findRuleViolations(data: unknown, rule: ForbiddenStringsRule): ForbiddenStringViolation[] {
   const violations: ForbiddenStringViolation[] = []
   for (const path of rule.paths) {
     for (const value of resolveStringsAtPath(data, path)) {
@@ -30,10 +30,7 @@ export function findRuleViolations(data: unknown, rule: ForbiddenStringsRule): F
   return violations
 }
 
-export function findForbiddenStrings(
-  rules: readonly ForbiddenStringsRule[],
-  readJson: (file: string) => unknown,
-): ForbiddenStringViolation[] {
+function findForbiddenStrings(rules: readonly ForbiddenStringsRule[], readJson: (file: string) => unknown): ForbiddenStringViolation[] {
   return rules.flatMap((rule) => findRuleViolations(readJson(rule.file), rule))
 }
 

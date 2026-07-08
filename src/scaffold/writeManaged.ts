@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 // Ported from https://github.com/MakerXStudio data-streams CLI upgrade-docs.ts writeManaged.
-export type ManagedAction = 'unchanged' | 'updated' | 'created'
+type ManagedAction = 'unchanged' | 'updated' | 'created'
 
 export type ManagedFileResult = {
   path: string

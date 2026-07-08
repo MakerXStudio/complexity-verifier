@@ -16,8 +16,8 @@ export type Check = {
   name: string
   description: string
   kind: CheckKind
-  /** Whether this check runs as part of the default set when the project has no `verify:*` scripts. */
-  inDefaultRun: boolean
+  /** Whether `verifyx init` preselects this check as a recommended default. */
+  recommended: boolean
   /** Run the check with its default options and print its own report. Resolves to the outcome. */
   runDefault: () => Promise<CheckResult>
   /** How `verify init` wires this check into a consuming project. */

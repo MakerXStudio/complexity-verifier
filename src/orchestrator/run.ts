@@ -4,10 +4,10 @@ import { runCommand, setVerbose } from '../shared/spawn.ts'
 import { filterByChangedFiles } from './filterByChangedFiles.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { resolveEntries, type VerifyEntry } from './resolveEntries.ts'
-import { runDefaults } from './runDefaults.ts'
 
 export type OrchestrateOptions = {
-  all?: boolean
+  /** When false (via --no-filter), run every verify:* script ignoring diff-based filters. */
+  filter?: boolean
   measure?: boolean
   verbose?: boolean
   check?: boolean
@@ -32,8 +32,9 @@ function reportScriptResults(records: readonly MeasureRecord[], total: number): 
 }
 
 /**
- * The default `verify` action. Convention: if the project defines `verify:*` scripts, run those in parallel
- * (output buffered, flushed only on failure); otherwise run the built-in default check set in-process.
+ * The default `verifyx` action. Convention: run the project's own `verify:*` scripts in parallel (output
+ * buffered, flushed only on failure). With no `verify:*` scripts, nothing runs — use `verifyx all` to run
+ * every built-in check.
  */
 export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number> {
   setVerbose(!!opts.verbose)
@@ -41,9 +42,12 @@ export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number
   configureMode(opts)
 
   const allEntries = resolveEntries()
-  if (allEntries.length === 0) return runDefaults({ measure: opts.measure })
+  if (allEntries.length === 0) {
+    console.log('No verify:* scripts defined — nothing to run. Add verify:* scripts, or run `verifyx all` to run every built-in check.')
+    return 0
+  }
 
-  const entries = opts.all ? allEntries : filterByChangedFiles(allEntries)
+  const entries = opts.filter === false ? allEntries : filterByChangedFiles(allEntries)
   if (entries.length === 0) {
     console.log('No verify scripts matched changed files — skipping')
     return 0

@@ -3,7 +3,7 @@ import { printFailure, printFileDetail, printMaintainabilityReport } from '../re
 import { color } from '../shared/color.ts'
 import type { CheckResult } from './types.ts'
 
-export const DEFAULT_THRESHOLD = 50
+const DEFAULT_THRESHOLD = 50
 
 export type ComplexityOptions = {
   pattern?: string

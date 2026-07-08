@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { CHECKS, defaultChecks, getCheck } from './registry.ts'
+import { CHECKS, getCheck, recommendedChecks } from './registry.ts'
 
 describe('check registry', () => {
   it('includes the native and external checks', () => {
@@ -15,21 +15,28 @@ describe('check registry', () => {
         'lint',
         'format',
         'check-types',
-        'knip',
+        'unused-code',
         'circular-deps',
         'duplicate-code',
       ]),
     )
   })
 
-  it('marks external tool checks with scaffold devDeps and a verify-CLI script', () => {
-    const knip = getCheck('knip')
-    expect(knip?.kind).toBe('external')
-    expect(knip?.scaffold.devDeps).toContain('knip')
-    expect(knip?.scaffold.script).toBe('verifyx knip')
+  it('names checks for their function, not the underlying tool', () => {
+    expect(getCheck('knip')).toBeUndefined()
+    expect(getCheck('skott')).toBeUndefined()
+    expect(getCheck('jscpd')).toBeUndefined()
   })
 
-  it('scaffolds native checks back into the verify CLI', () => {
+  it('marks external tool checks with scaffold devDeps and a verifyx-CLI script', () => {
+    const unused = getCheck('unused-code')
+    expect(unused?.kind).toBe('external')
+    // The check is named for its function; the tool (knip) is only an install detail.
+    expect(unused?.scaffold.devDeps).toContain('knip')
+    expect(unused?.scaffold.script).toBe('verifyx unused-code')
+  })
+
+  it('scaffolds native checks back into the verifyx CLI', () => {
     expect(getCheck('complexity')?.scaffold.script).toBe('verifyx complexity')
   })
 
@@ -37,7 +44,10 @@ describe('check registry', () => {
     expect(getCheck('nope')).toBeUndefined()
   })
 
-  it('every default check is in the registry', () => {
-    for (const check of defaultChecks()) expect(CHECKS).toContain(check)
+  it('recommends a subset for init preselection, all within the registry', () => {
+    const recommended = recommendedChecks()
+    expect(recommended.length).toBeGreaterThan(0)
+    expect(recommended.length).toBeLessThan(CHECKS.length)
+    for (const check of recommended) expect(CHECKS).toContain(check)
   })
 })

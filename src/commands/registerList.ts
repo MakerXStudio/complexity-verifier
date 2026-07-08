@@ -11,7 +11,7 @@ export function registerList(program: Command): void {
     .action(() => {
       console.log(color.heading('Built-in checks'))
       for (const check of CHECKS) {
-        const tags = color.dim(`(${check.kind}, ${check.inDefaultRun ? 'default' : 'opt-in'})`)
+        const tags = color.dim(`(${check.kind}${check.recommended ? ', recommended' : ''})`)
         console.log(`  ${color.cyan(check.name.padEnd(18))} ${tags} ${check.description}`)
       }
     })

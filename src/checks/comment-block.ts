@@ -4,7 +4,7 @@ import { printCommentBlockReport } from '../report.ts'
 import { color } from '../shared/color.ts'
 import type { CheckResult } from './types.ts'
 
-export const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
+const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
 
 export type CommentBlockOptions = {
   pattern?: string

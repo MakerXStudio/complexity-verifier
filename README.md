@@ -36,12 +36,12 @@ npx verifyx init
 
 ## How `verifyx` decides what to run
 
-Running `verifyx` with no subcommand follows a convention:
+Your project's `verify:*` scripts **are** the gate, and `verifyx` runs exactly what you define — nothing implicit:
 
-- **No `verify:*` scripts in `package.json`** → it runs the **built-in default checks** in their default modes. Each check degrades gracefully — it passes or skips when it does not apply (no files, no diff, tool not installed, no rules configured).
-- **`verify:*` scripts present** → it runs **those** in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code). Add `--verbose` to stream everything.
+- **`verifyx`** (no subcommand) runs your `verify:*` scripts in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code); add `--verbose` to stream everything. With **no `verify:*` scripts, nothing runs.**
+- **`verifyx all`** runs **every built-in check** (the explicit "run everything"). A `verify:<name>` script **overrides** its matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
-You take control by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
+You curate the gate by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
 ```jsonc
 {
@@ -54,7 +54,7 @@ You take control by adding `verify:*` scripts. Prefer calling the built-ins (`ve
 }
 ```
 
-Run a single built-in directly: `verifyx complexity`, `verifyx knip`, … and `verifyx list` shows them all.
+Run a single built-in directly: `verifyx complexity`, `verifyx unused-code`, … and `verifyx list` shows them all.
 
 ### Fix locally, check in CI
 
@@ -133,7 +133,7 @@ It lets you multi-select **checks** and **agent targets** (Claude `.claude/`, an
 
 Options:
 
-- `--defaults-only` — do **not** write `verify:*` scripts; rely on `verify`'s built-in defaults (still installs opted-in tools and writes agent files).
+- `--defaults-only` — do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes agent files).
 - `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
 ### `verifyx upgrade-docs`

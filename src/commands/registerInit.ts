@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 import enquirer from 'enquirer'
 
-import { CHECKS, defaultChecks } from '../checks/registry.ts'
+import { CHECKS, recommendedChecks } from '../checks/registry.ts'
 import type { AgentTarget } from '../scaffold/agentFiles.ts'
 import { applyInit, type InitResult } from '../scaffold/init.ts'
 import { color } from '../shared/color.ts'
@@ -32,12 +32,12 @@ async function resolveSelections(opts: InitCliOptions): Promise<{ checks: string
     const targets: AgentTarget[] = []
     if (opts.claude !== false) targets.push('claude')
     if (opts.agents) targets.push('agents')
-    return { checks: opts.select.length > 0 ? opts.select : defaultChecks().map((c) => c.name), targets }
+    return { checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name), targets }
   }
 
   const checks = await multiselect(
     'Select checks to wire up',
-    CHECKS.map((c) => ({ name: c.name, message: `${c.name} — ${c.description}`, enabled: c.inDefaultRun })),
+    CHECKS.map((c) => ({ name: c.name, message: `${c.name} — ${c.description}`, enabled: c.recommended })),
   )
   const targets = (await multiselect('Select agent targets', [
     { name: 'claude', message: 'Claude (.claude/commands + skill)', enabled: true },

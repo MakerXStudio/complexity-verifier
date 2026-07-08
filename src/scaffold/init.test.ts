@@ -22,11 +22,11 @@ function readScripts(): Record<string, string> {
 
 describe('applyInit', () => {
   it('writes verify:* scripts, agent files, and collects external devDeps', () => {
-    const result = applyInit({ cwd: dir, checks: ['complexity', 'knip'], targets: ['claude'], defaultsOnly: false })
+    const result = applyInit({ cwd: dir, checks: ['complexity', 'unused-code'], targets: ['claude'], defaultsOnly: false })
 
     const scripts = readScripts()
     expect(scripts['verify:complexity']).toBe('verifyx complexity')
-    expect(scripts['verify:knip']).toContain('knip')
+    expect(scripts['verify:unused-code']).toBe('verifyx unused-code')
     expect(scripts.verify).toBe('verifyx')
     expect(result.devDeps).toContain('knip')
     expect(fs.existsSync(path.join(dir, '.claude', 'commands', 'verify.md'))).toBe(true)
@@ -34,9 +34,10 @@ describe('applyInit', () => {
   })
 
   it('defaults-only writes no verify:* scripts but keeps devDeps and agent files', () => {
-    const result = applyInit({ cwd: dir, checks: ['knip'], targets: ['agents'], defaultsOnly: true })
+    const result = applyInit({ cwd: dir, checks: ['unused-code'], targets: ['agents'], defaultsOnly: true })
 
     expect(Object.keys(readScripts())).toEqual(['verify'])
+    expect(readScripts().verify).toBe('verifyx all')
     expect(result.devDeps).toContain('knip')
     expect(fs.existsSync(path.join(dir, '.agent-skills', 'verify', 'SKILL.md'))).toBe(true)
   })

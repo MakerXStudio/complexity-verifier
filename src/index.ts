@@ -14,8 +14,8 @@ export { runCommentBlock } from './checks/comment-block.ts'
 export { runComplexity } from './checks/complexity.ts'
 export { runForbiddenStrings } from './checks/forbidden-strings.ts'
 export { runHardcodedColors } from './checks/hardcoded-colors.ts'
-export { CHECKS, defaultChecks, getCheck } from './checks/registry.ts'
-export type { Check, CheckKind, CheckResult } from './checks/types.ts'
+export { CHECKS, getCheck, recommendedChecks } from './checks/registry.ts'
+export type { Check, CheckKind, CheckMode, CheckResult } from './checks/types.ts'
 export { type CommentBlockViolation, findLongCommentBlocks } from './comments.ts'
 export { type FunctionCallback, forEachFunction } from './functions.ts'
 export {
@@ -26,6 +26,6 @@ export {
   type HalsteadMetrics,
 } from './metrics.ts'
 export { orchestrate } from './orchestrator/run.ts'
-export { runDefaults } from './orchestrator/runDefaults.ts'
+export { runAll } from './orchestrator/runAll.ts'
 export { applyInit, type InitOptions, type InitResult } from './scaffold/init.ts'
 export { type ForbiddenStringsRule, loadVerifyConfig, type VerifyConfig } from './shared/config.ts'

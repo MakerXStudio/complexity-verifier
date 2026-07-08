@@ -6,8 +6,6 @@ import { forEachFunction } from './functions.ts'
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'
 import { color } from './shared/color.ts'
 
-export { color }
-
 const FORMULA = '171 - 5.2*ln(HalsteadVolume) - 0.23*CyclomaticComplexity - 16.2*ln(SLOC), clamped 0-100'
 
 export function printMaintainabilityReport(

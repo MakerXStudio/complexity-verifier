@@ -9,7 +9,7 @@ import type { Check, CheckMode, CheckResult } from './types.ts'
 const BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
 
 /** True when a project-local binary is installed under node_modules/.bin (cross-platform). */
-export function hasLocalBin(bin: string, cwd: string = process.cwd()): boolean {
+function hasLocalBin(bin: string, cwd: string = process.cwd()): boolean {
   const dir = path.join(cwd, 'node_modules', '.bin')
   return BIN_EXTENSIONS.some((ext) => fs.existsSync(path.join(dir, bin + ext)))
 }
@@ -34,7 +34,7 @@ export type ExternalCheckSpec = {
   /** Command run in fix mode. When omitted, the check is not fixable and always runs `checkCommand`. */
   fixCommand?: string
   devDeps: string[]
-  inDefaultRun?: boolean
+  recommended?: boolean
   /** Extra guard beyond bin presence (e.g. require a tsconfig). */
   canRun?: () => boolean
 }
@@ -50,7 +50,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     name: spec.name,
     description: spec.description,
     kind: 'external',
-    inDefaultRun: spec.inDefaultRun ?? true,
+    recommended: spec.recommended ?? false,
     // Scaffold as a call into this CLI so fix-vs-check lives in one place, not the consumer's script.
     scaffold: { script: `verifyx ${spec.name}`, devDeps: spec.devDeps },
     async runDefault(): Promise<CheckResult> {

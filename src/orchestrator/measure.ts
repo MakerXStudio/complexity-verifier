@@ -5,7 +5,7 @@ export type MeasureRecord = {
   durationMs: number
 }
 
-export function formatDuration(ms: number): string {
+function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }

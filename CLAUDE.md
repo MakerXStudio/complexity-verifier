@@ -6,7 +6,7 @@ A growing collection of code **verifications** that give AI coding agents back-p
 
 ## After making changes, run `npm run verify`
 
-`npm run verify` runs `verifyx` — the orchestrator over the repo's own `verify:*` scripts, which call the built-in checks (`verifyx lint|format|check-types|complexity|comment-block|…`). It runs them in parallel and suppresses output unless one fails.
+`npm run verify` runs `verifyx` — the orchestrator over the repo's own `verify:*` scripts, which call the built-in checks (`verifyx lint|format|check-types|complexity|comment-block|…`). It runs them in parallel and suppresses output unless one fails. Bare `verifyx` runs **only** the defined `verify:*` scripts (nothing if none); `verifyx all` runs **every** built-in check, with a `verify:<name>` script overriding its matching built-in.
 
 **Fix locally, check in CI.** Run locally, `verifyx` **auto-fixes** what it can (`oxlint --fix`, `oxfmt`) so you don't waste effort hand-fixing lint/format. Under CI (`CI` env set — both workflows call `npm run verify` via the shared workflow's `lint-script`) the same command is **check-only** and fails if anything isn't already right. Force a mode with `verifyx --check` / `verifyx --fix`. (Mode propagates to the `verify:*` child scripts via the `VERIFY_MODE` env, so they carry no `--check`/`--fix` flags — those live only on the root command.)
 

@@ -33,7 +33,8 @@ export function applyInit(opts: InitOptions): InitResult {
     if (!opts.defaultsOnly) scripts[`verify:${name}`] = check.scaffold.script
   }
 
-  const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts)
+  // Defaults-only wires the top `verify` script to `verifyx all` so it runs every built-in with no verify:* list.
+  const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts, opts.defaultsOnly ? 'verifyx all' : 'verifyx')
   const agentFiles = writeAgentFiles(opts.cwd, opts.targets)
   return { addedScripts, devDeps: [...new Set(devDeps)], agentFiles }
 }
