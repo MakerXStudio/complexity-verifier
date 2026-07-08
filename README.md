@@ -36,21 +36,23 @@ npx verifyx init
 
 ## How `verifyx` decides what to run
 
-There are three ways to invoke it, from "my curated gate" to "one specific check":
+A **`verify:*` script** is any npm script in your `package.json` whose name starts with `verify:` — `verify:lint`, `verify:complexity`, `verify:custom`, and so on. Each one is a single check. `verifyx` runs them all **in parallel**, and together they form your project's verification gate. You decide which checks make up that gate by adding these scripts (`verifyx init` scaffolds a starting set).
 
-| Command           | What it runs                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `verifyx`         | Your project's `verify:*` scripts — the gate you curate. No `verify:*` scripts → nothing runs. |
-| `verifyx all`     | Every built-in check, with default options.                                             |
-| `verifyx <check>` | A single built-in, e.g. `verifyx complexity`. `verifyx list` shows them all.            |
+There are three ways to invoke the CLI, from "all my checks" down to "one specific check":
 
-### `verifyx` — your curated gate
+| Command           | What it runs                                                                                 |
+| ----------------- | -------------------------------------------------------------------------------------------- |
+| `verifyx`         | Every `verify:*` script — the set of checks you've curated. With none defined, nothing runs. |
+| `verifyx all`     | Every built-in check, with default options.                                                  |
+| `verifyx <check>` | A single built-in, e.g. `verifyx complexity`. `verifyx list` shows them all.                 |
 
-`verifyx` with no subcommand is what you run day-to-day and in CI. It runs every `verify:*` script in `package.json` **in parallel**, and nothing implicit — the scripts you define **are** the gate.
+### `verifyx` — run your curated checks
+
+`verifyx` with no subcommand is what you run day-to-day and in CI. It runs every `verify:*` script in parallel — nothing implicit, the scripts you define **are** the gate.
 
 A clean run is **completely silent**: no preamble, no per-script output, just exit `0`. Each script's output is buffered and printed **only if that script fails**, so `verifyx` is cheap to run in a loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table.)
 
-You curate the gate by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
+You curate your checks by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
 ```jsonc
 {
