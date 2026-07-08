@@ -16,5 +16,7 @@ jobs:
       node-version: 24.x
       run-build: true
       build-script: npm run build
+      # Runs the non-editing verifications (lint/format checks, complexity, comment-block, types).
+      lint-script: npm run verify
       test-script: npm run test:ci
       audit-script: npm run audit
