@@ -57,11 +57,11 @@ There are three ways to invoke the CLI, from "all my checks" down to "one specif
 | `verifyx all`     | Every built-in check with default options, plus any custom `verify:*` scripts. A `verify:<name>` overrides its built-in. |
 | `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                                     |
 
+Both orchestration modes below (`verifyx` and `verifyx all`) are **completely silent on success**: no preamble, no per-check output, just exit `0`. Each check's output is buffered and printed **only if it fails**, so a run is cheap to loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table. Running a single built-in, `verifyx <check>`, always prints its report, since you asked for that check specifically.)
+
 ### `verifyx`: run your curated checks
 
 With no subcommand, `verifyx` runs every `verify:*` script in parallel. Nothing is implicit: the scripts you define **are** the gate. This is the mode a top-level `"verify": "verifyx"` script points at, so `npm run verify` runs your whole gate.
-
-A clean run is **completely silent**: no preamble, no per-script output, just exit `0`. Each script's output is buffered and printed **only if that script fails**, so `verifyx` is cheap to run in a loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table.)
 
 You curate your checks by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
@@ -120,6 +120,15 @@ External checks shell out to their tool and **skip gracefully when it is not ins
 
 Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
 
+Each external check is configured through its **tool's own config file**, exactly as you would use that tool standalone:
+
+- `lint`: [`.oxlintrc.json`](https://oxc.rs/docs/guide/usage/linter.html)
+- `format`: [oxfmt configuration](https://oxc.rs)
+- `check-types`: your [`tsconfig.json`](https://www.typescriptlang.org/tsconfig)
+- `unused-code`: [`knip.json`](https://knip.dev/reference/configuration)
+- `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
+- `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
+
 ### `complexity`
 
 ```sh
@@ -153,7 +162,7 @@ Capable coding models (Opus 4.8 very much included) love to narrate their work: 
 - `--pushback`: reframe the failure message as back-pressure aimed at an AI agent (see below).
 - `--warn`: report the long-block violations without failing the run.
 - `--block-new-comments`: also fail on any comment on a line changed against `HEAD` (see below).
-- `--ignore <glob>`: exclude files (repeatable).
+- `--ignore <glob>`: exclude files (repeatable; the `--block-new-comments` gate also reads `comments.ignore` from your [verify config](#configuration)).
 
 **`--pushback` is the clever bit.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider and remove the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it stops agents silencing the check far more reliably than a plain error does.
 
@@ -164,6 +173,35 @@ Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`
 ```ts
 // context: the upstream API returns seconds, not milliseconds, so do not "fix" this
 const timeoutMs = timeout * 1000
+```
+
+### `hardcoded-colors`
+
+```sh
+verifyx hardcoded-colors --root src
+```
+
+Fails on literal hex or `0x` colour values in source (`.ts`, `.tsx`, `.css`, `.scss`, `.vue`, `.svelte`, and similar), nudging you toward named design tokens. It is pure JavaScript (no `grep`), so it behaves the same on every OS.
+
+- `--root <dir>`: directory to scan (default `src`).
+- `--ignore <glob>`: exclude files (repeatable).
+
+Both default from your [verify config](#configuration) (`hardcodedColors.root` and `hardcodedColors.ignore`), so you can set them once instead of in the script.
+
+### `forbidden-strings`
+
+```sh
+verifyx forbidden-strings
+```
+
+Fails when a configured JSON value matches a disallowed glob, handy for catching things like a `debug` log level or a staging URL left in a committed config file. It is entirely config-driven (no flags): define rules under `forbiddenStrings` in your [verify config](#configuration). Each rule reads its `file`, looks up every dotted `paths` entry, and fails if the value matches the `disallowed` glob:
+
+```jsonc
+{
+  "verify": {
+    "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
+  },
+}
 ```
 
 ## Scaffolding a project
@@ -202,7 +240,7 @@ verifyx upgrade-docs --no-agents  # only .claude/ + CLAUDE.md
 
 ## Configuration
 
-Some checks read per-repo config from `verify.config.json`, or a `verify` key in `package.json`:
+The **native** checks that take persistent settings read them from a `verify.config.json` file, or a `verify` key in `package.json` (the standalone file wins if both are present). Each option is documented alongside its check above; collected here for reference:
 
 ```jsonc
 {
@@ -214,31 +252,58 @@ Some checks read per-repo config from `verify.config.json`, or a `verify` key in
 }
 ```
 
+**External** checks don't use this file; each is configured through its own tool's config (`.oxlintrc.json`, `tsconfig.json`, `knip.json`, and so on), listed under [Built-in checks](#built-in-checks).
+
 ## CI/CD
 
-Because it is a pinned dev dependency, CI runs the identical tool:
+`verifyx` is built to run the **same command** locally and in CI. The only thing that changes is the `CI` environment variable: when it's set (GitHub Actions, GitLab CI, and most providers export it automatically), `verifyx` switches from **fix** mode to **check** mode. Nothing is rewritten; any lint, formatting, type, complexity, or other issue **fails the job** instead, so a PR can't merge with a problem that should have been fixed locally first.
+
+Because the tool is a pinned dev dependency, CI runs the exact version in your lockfile. A minimal GitHub Actions job:
 
 ```yaml
-- run: npm ci
-- run: npm run verify
+name: verify
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
 ```
+
+`npm run verify` exits non-zero on the first failing check (failing the job), and its buffered output is flushed so the log shows exactly what failed and how to fix it. To force a mode regardless of environment, use `verifyx --check` or `verifyx --fix`.
 
 ## Programmatic API
 
-```ts
-import { analyzeComplexity, orchestrate, CHECKS } from '@makerx/verify'
+Every export is available from the package root:
 
-const { failing, passed } = analyzeComplexity({
-  pattern: 'src/**/*.ts',
-  threshold: 50,
-})
+```ts
+import { analyzeComplexity, getCheck, runAll } from '@makerx/verify'
+
+// Run the maintainability analysis directly.
+const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
+
+// Run any single check by name, including the ones that shell out to an external tool.
+const lint = await getCheck('lint')?.runDefault()
 ```
 
-Exports include `analyzeComplexity`, the check registry (`CHECKS`, `getCheck`, `recommendedChecks`), `orchestrate`, `runAll`, `applyInit`, `loadVerifyConfig`, the individual `run*` check functions, and the lower-level complexity helpers (`calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, `forEachFunction`).
+Native checks also expose a direct runner (`runComplexity`, `runComments`, `runHardcodedColors`, `runForbiddenStrings`); external checks (`lint`, `format`, `check-types`, `unused-code`, `circular-deps`, `duplicate-code`) have no standalone function and are run via the registry (`getCheck(name)?.runDefault()`) or the orchestrators.
+
+Entry points:
+
+- **Checks**: `CHECKS`, `getCheck`, `recommendedChecks`, and the native `run*` functions above.
+- **Orchestration**: `orchestrate` (the bare `verifyx` runner) and `runAll` (`verifyx all`).
+- **Complexity internals**: `analyzeComplexity`, `scoreFiles`, `findSourceFiles`, `resolvePattern`, `forEachFunction`, `findLongCommentBlocks`, and the metric helpers `calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`.
+- **Scaffolding & config**: `applyInit` and `loadVerifyConfig`.
 
 ## Attribution
 
-The `verify` runner, `comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. The idempotent agent-file scaffolding follows the MakerX data-streams CLI's `upgrade-docs`. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
+The `verify` runner, `comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
 
 ## License
 
