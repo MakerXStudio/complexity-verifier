@@ -33,4 +33,3 @@ jobs:
       node-version: 24.x
       access: public
       package-path: package.json
-      build-script: build
