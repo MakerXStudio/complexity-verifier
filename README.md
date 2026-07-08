@@ -38,7 +38,7 @@ npx verifyx init
 
 Your project's `verify:*` scripts **are** the gate, and `verifyx` runs exactly what you define — nothing implicit:
 
-- **`verifyx`** (no subcommand) runs your `verify:*` scripts in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code); add `--verbose` to stream everything. With **no `verify:*` scripts, nothing runs.**
+- **`verifyx`** (no subcommand) runs your `verify:*` scripts in parallel. A clean run is **silent** — no preamble, no per-script output, just exit `0` — so it's cheap to run in a loop or an agent. Each script's output is buffered and shown **only if it fails**. Add `--verbose` to stream everything, or `--measure` for a status/duration table. With **no `verify:*` scripts, nothing runs.**
 - **`verifyx all`** runs **every built-in check** (the explicit "run everything"). A `verify:<name>` script **overrides** its matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
 **Fix/check overrides.** Alongside a `verify:<name>` (check-mode) script you can define a `verify:<name>:fix` variant. `verifyx` runs the `:fix` variant in fix mode (locally) and the base in check mode (CI), and never both — so an override with a non-mode-aware tool still fixes locally and only checks in CI:

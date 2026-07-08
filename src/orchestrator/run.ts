@@ -1,8 +1,8 @@
-import { color } from '../shared/color.ts'
 import { configureMode, resolveMode } from '../shared/mode.ts'
 import { runCommand, setVerbose } from '../shared/spawn.ts'
 import { filterByChangedFiles } from './filterByChangedFiles.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
+import { chatty, reportOutcomes } from './report.ts'
 import { resolveEntries, selectEntries, type VerifyEntry } from './resolveEntries.ts'
 
 export type OrchestrateOptions = {
@@ -20,21 +20,10 @@ async function runEntry(entry: VerifyEntry): Promise<MeasureRecord> {
   return { script: entry.name, code, durationMs: Date.now() - startTime }
 }
 
-function reportScriptResults(records: readonly MeasureRecord[], total: number): number {
-  const failed = records.filter((record) => record.code !== 0)
-  if (failed.length > 0) {
-    console.error(color.red(`\n${failed.length} script(s) failed:`))
-    for (const record of failed) console.error(`  - ${record.script} (exit code ${record.code})`)
-    return 1
-  }
-  console.log(color.green(`\nAll ${total} verify script(s) passed`))
-  return 0
-}
-
 /**
  * The default `verifyx` action. Convention: run the project's own `verify:*` scripts in parallel (output
- * buffered, flushed only on failure). With no `verify:*` scripts, nothing runs — use `verifyx all` to run
- * every built-in check.
+ * buffered, flushed only on failure). A clean run is silent — use `--verbose` or `--measure` for detail.
+ * With no `verify:*` scripts, nothing runs — use `verifyx all` to run every built-in check.
  */
 export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number> {
   setVerbose(!!opts.verbose)
@@ -55,11 +44,18 @@ export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number
     return 0
   }
 
-  console.log(`Running ${entries.length} verify script(s) in parallel:`)
-  for (const entry of entries) console.log(`  - ${entry.name}`)
+  const loud = chatty(opts.measure)
+  if (loud) {
+    console.log(`Running ${entries.length} verify script(s) in parallel:`)
+    for (const entry of entries) console.log(`  - ${entry.name}`)
+  }
 
   const startTime = Date.now()
   const records = await Promise.all(entries.map(runEntry))
   if (opts.measure) printMeasureTable(records, Date.now() - startTime)
-  return reportScriptResults(records, entries.length)
+  return reportOutcomes(
+    records.map((r) => ({ name: r.script, ok: r.code === 0 })),
+    'verify script',
+    loud,
+  )
 }

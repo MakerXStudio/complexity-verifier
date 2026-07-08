@@ -7,6 +7,10 @@ export function setVerbose(verbose: boolean): void {
   verboseMode = verbose
 }
 
+export function isVerbose(): boolean {
+  return verboseMode
+}
+
 function shouldSuppress(quiet?: boolean): boolean {
   if (verboseMode) return false
   return !!quiet || !!process.env.CLAUDECODE

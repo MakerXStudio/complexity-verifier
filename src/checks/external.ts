@@ -74,7 +74,8 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         return { name: spec.name, ok: true, skipped: true }
       }
       const command = selectCommand(spec, resolveMode())
-      const code = await runCommand(command, { env: envWithLocalBin() })
+      // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
+      const code = await runCommand(command, { env: envWithLocalBin(), quiet: true })
       // Only on failure — passing runs stay silent to save tokens.
       if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
       return { name: spec.name, ok: code === 0 }
