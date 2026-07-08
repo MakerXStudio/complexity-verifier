@@ -1,6 +1,6 @@
 # @makerx/verify
 
-**One command your AI agent runs after every change — and your CI runs on every push.** `verifyx` bundles a project's checks (lint, format, type-check, complexity, dead code, and more) behind a single command designed to give AI coding agents real back-pressure against shipping hard-to-maintain code, while keeping quality high for everyone.
+**One command your AI agent runs after every change, and your CI runs on every push.** `verifyx` bundles a project's checks (lint, format, type-check, complexity, dead code, and more) behind a single command designed to give AI coding agents real back-pressure against shipping hard-to-maintain code, while keeping quality high for everyone.
 
 `verify` ships both:
 
@@ -9,14 +9,14 @@
 
 What makes it worth wiring in:
 
-- **Auto-fixes locally, fails in CI — same command.** Run it on your machine and it _fixes_ what it can (lint, formatting) instead of just complaining. Run it under CI and the identical command is check-only, so a PR can't merge with problems that should have been fixed.
-- **Silent when green, so it's cheap to loop.** A passing run prints nothing and exits `0` — no output to burn an agent's tokens or bury the one failure that matters. Agents can run it as often as they like.
-- **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact command, and a docs link — so the agent (or you) knows what to fix and how, instead of guessing.
-- **Convention over configuration.** Checks are just `verify:*` npm scripts run in parallel. Add, drop, or override any of them — no bespoke config format to learn.
+- **Auto-fixes locally, fails in CI (same command).** Run it on your machine and it _fixes_ what it can (lint, formatting) instead of just complaining. Run it under CI and the identical command is check-only, so a PR can't merge with problems that should have been fixed.
+- **Silent when green, so it's cheap to loop.** A passing run prints nothing and exits `0`, with no output to burn an agent's tokens or bury the one failure that matters. Agents can run it as often as they like.
+- **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact command, and a docs link, so the agent (or you) knows what to fix and how instead of guessing.
+- **Convention over configuration.** Checks are just `verify:*` npm scripts run in parallel. Add, drop, or override any of them; there's no bespoke config format to learn.
 
 ## Install
 
-Install it as a **dev dependency** so the version is pinned in `package.json` — that way the exact same tool runs on your machine and in CI/CD:
+Install it as a **dev dependency** so the version is pinned in `package.json`, so the exact same tool runs on your machine and in CI/CD:
 
 ```sh
 npm install --save-dev @makerx/verify
@@ -34,32 +34,32 @@ npx verifyx init
 > **Why is the command `verifyx`, not `verify`?**
 >
 > The package is `@makerx/verify`, but the CLI binary is **`verifyx`**. `verify` is a built-in `cmd.exe`
-> command on Windows, and both `npm run` script bodies and `npx` resolve commands through `cmd` there — so a
+> command on Windows, and both `npm run` script bodies and `npx` resolve commands through `cmd` there, so a
 > bare `verify` runs the Windows builtin ("VERIFY is off."), not this tool. Renaming the binary to `verifyx`
-> (a nod to the fact it **fixes** as well as verifies) makes every invocation — `npx verifyx`, npm scripts,
-> and a typed `verifyx` — work identically on macOS, Linux, and Windows. Your npm **script** can still be named
+> (a nod to the fact it **fixes** as well as verifies) makes every invocation (`npx verifyx`, npm scripts,
+> and a typed `verifyx`) work identically on macOS, Linux, and Windows. Your npm **script** can still be named
 > `verify` (that's a script lookup, not command resolution), so `npm run verify` works everywhere.
 
 ## How `verifyx` decides what to run
 
-A **`verify:*` script** is any npm script in your `package.json` whose name starts with `verify:` — `verify:lint`, `verify:complexity`, `verify:custom`, and so on. Each one is a single **check**. `verifyx` runs them all **in parallel**, and together they form your project's verification gate. You decide which checks make up that gate by adding these scripts (`verifyx init` scaffolds a starting set).
+A **`verify:*` script** is any npm script in your `package.json` whose name starts with `verify:` (for example `verify:lint`, `verify:complexity`, `verify:custom`). Each one is a single **check**. `verifyx` runs them all **in parallel**, and together they form your project's verification gate. You decide which checks make up that gate by adding these scripts (`verifyx init` scaffolds a starting set).
 
 A check is either **built-in** or **custom**:
 
-- **Built-in checks** ship with `verifyx` (see [Built-in checks](#built-in-checks) below) and are invoked as subcommands — `verifyx lint`, `verifyx complexity`, … A `verify:*` script wires one in by calling it: `"verify:lint": "verifyx lint"`.
-- **Custom checks** are any command of your own, wired as a `verify:*` script that runs whatever you like: `"verify:custom": "node ./scripts/my-check.mjs"`. They aren't `verifyx` subcommands — you run them through the gate, or directly via `npm run verify:custom`.
+- **Built-in checks** ship with `verifyx` (see [Built-in checks](#built-in-checks) below) and are invoked as subcommands (`verifyx lint`, `verifyx complexity`, and so on). A `verify:*` script wires one in by calling it: `"verify:lint": "verifyx lint"`.
+- **Custom checks** are any command of your own, wired as a `verify:*` script that runs whatever you like: `"verify:custom": "node ./scripts/my-check.mjs"`. They aren't `verifyx` subcommands; you run them through the gate, or directly via `npm run verify:custom`.
 
 There are three ways to invoke the CLI, from "all my checks" down to "one specific check":
 
-| Command           | What it runs                                                                                         |
-| ----------------- | ---------------------------------------------------------------------------------------------------- |
-| `verifyx`         | Every `verify:*` script — the set of checks you've curated (built-in and custom). None defined → nothing runs. |
-| `verifyx all`     | Every built-in check with default options; a matching `verify:<name>` script overrides that built-in. |
-| `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                 |
+| Command           | What it runs                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `verifyx`         | Every `verify:*` script: the checks you've curated (built-in and custom). With none defined, nothing runs.          |
+| `verifyx all`     | Every built-in check with default options, plus any custom `verify:*` scripts. A `verify:<name>` overrides its built-in. |
+| `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                                |
 
-### `verifyx` — run your curated checks
+### `verifyx`: run your curated checks
 
-With no subcommand, `verifyx` runs every `verify:*` script in parallel — nothing implicit, the scripts you define **are** the gate. This is the mode a top-level `"verify": "verifyx"` script points at, so `npm run verify` runs your whole gate.
+With no subcommand, `verifyx` runs every `verify:*` script in parallel. Nothing is implicit: the scripts you define **are** the gate. This is the mode a top-level `"verify": "verifyx"` script points at, so `npm run verify` runs your whole gate.
 
 A clean run is **completely silent**: no preamble, no per-script output, just exit `0`. Each script's output is buffered and printed **only if that script fails**, so `verifyx` is cheap to run in a loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table.)
 
@@ -76,15 +76,15 @@ You curate your checks by adding `verify:*` scripts. Prefer calling the built-in
 }
 ```
 
-### `verifyx all` — run every built-in
+### `verifyx all`: run everything
 
-`verifyx all` runs **every** built-in check with its default options — a quick "run everything" without wiring up scripts. Where you've defined a `verify:<name>` script for one of them, it **overrides** that built-in, so you can swap a single check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step. (Custom `verify:*` scripts with no matching built-in aren't run by `verifyx all` — use bare `verifyx` for those.)
+`verifyx all` runs **every** built-in check with its default options, plus any custom `verify:*` scripts you've defined. It's the quick "run everything" without hand-curating a list. Where you've defined a `verify:<name>` script matching a built-in, it **overrides** that built-in, so you can swap a single check's implementation without redefining the rest, e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
 ### Fix locally, check in CI
 
-Fixable checks (`lint`, `format`) **auto-fix by default** so the person — or AI agent — running `verifyx` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Force a mode with `verifyx --fix` or `verifyx --check`.
+Fixable checks (`lint`, `format`) **auto-fix by default** so the person (or AI agent) running `verifyx` locally doesn't burn effort hand-fixing lint and formatting. When `CI` is set (as CI systems do), the same command is **check-only** and **fails** instead of rewriting, so a PR can't pass with unformatted or unlinted code. Force a mode with `verifyx --fix` or `verifyx --check`.
 
-To give a script-based override that same split, pair a `verify:<name>` (check-mode) script with a `verify:<name>:fix` variant. `verifyx` runs the `:fix` variant locally and the base script in CI — never both — so even an override wrapping a tool that doesn't know about fix-vs-check still fixes locally and only checks in CI:
+The same split works for any `verify:<name>` script, whether it overrides a built-in or runs a custom command: pair it with a `verify:<name>:fix` variant, and `verifyx` runs the `:fix` variant locally and the base script in CI (never both). So even a script wrapping a tool that doesn't know about fix-vs-check still fixes locally and only checks in CI:
 
 ```jsonc
 {
@@ -97,28 +97,28 @@ To give a script-based override that same split, pair a `verify:<name>` (check-m
 
 Flags on the bare `verifyx` command:
 
-- `--check` / `--fix` — force check-only or auto-fix (defaults: fix locally, check under CI).
-- `--measure` — print a status/duration summary table.
-- `--verbose` — stream all output instead of suppressing passing runs.
+- `--check` / `--fix`: force check-only or auto-fix (defaults: fix locally, check under CI).
+- `--measure`: print a status/duration summary table.
+- `--verbose`: stream all output instead of suppressing passing runs.
 
 ## Built-in checks
 
-| Check               | Kind     | What it catches                                                                                                                                                                                                                           |
-| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                               |
-| `comments`          | native   | Comment blocks longer than the limit (JSDoc / `context:` exempt); with `--block-new-comments`, also any comment on a line changed against `HEAD` (machine directives like `eslint-disable` / `@ts-expect-error`, and `context:`, exempt). |
-| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                |
-| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                          |
-| `lint`              | external | Lint — auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                       |
-| `format`            | external | Formatting — writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                      |
-| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                           |
-| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                        |
-| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                 |
-| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                      |
+| Check               | Kind     | What it catches                                                                                                                                                                                                                          |
+| ------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                              |
+| `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to also fail any comment on a line you changed vs `HEAD`.  |
+| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                              |
+| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                        |
+| `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                    |
+| `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                     |
+| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                          |
+| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                      |
+| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                               |
+| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                    |
 
-External checks shell out to their tool and **skip gracefully when it is not installed** — `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
+External checks shell out to their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
-Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link — so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
+Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
 
 ### `complexity`
 
@@ -126,19 +126,19 @@ Because checks are named for their function, **on failure** an external check pr
 verifyx complexity --threshold 50 "src/**/*.ts"
 ```
 
-- `[pattern]` — glob, directory, or file. Defaults to `{src,server,shared}/**/*.ts`.
-- `--threshold <n>` — fail when any file's minimum maintainability index is below `n`.
-- `--ignore <glob>` — exclude files (repeatable; appended to the default `**/*test.ts*`).
+- `[pattern]`: glob, directory, or file. Defaults to `{src,server,shared}/**/*.ts`.
+- `--threshold <n>`: fail when any file's minimum maintainability index is below `n`.
+- `--ignore <glob>`: exclude files (repeatable; appended to the default `**/*test.ts*`).
 
-It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes three metrics — **cyclomatic complexity** (independent paths through the code), **Halstead volume** (a size measure derived from the operators and operands used), and **SLOC** (source lines of code, excluding blanks and comments) — then combines them into a single **maintainability index (MI)**, a 0–100 score where lower means harder to maintain:
+It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes three metrics: **cyclomatic complexity** (independent paths through the code), **Halstead volume** (a size measure derived from the operators and operands used), and **SLOC** (source lines of code, excluding blanks and comments). It then combines them into a single **maintainability index (MI)**, a 0–100 score where lower means harder to maintain:
 
 ```
 MI = 171 - 5.2 * ln(HalsteadVolume) - 0.23 * CyclomaticComplexity - 16.2 * ln(SLOC)
 ```
 
-The result is clamped to 0–100; a function with zero Halstead volume or zero SLOC scores 100. As a rough guide: **> 65** is good, **50–65** is moderate (watch for growth), and **< 50** is hard to maintain. Thresholds are a matter of taste — pick one that fits your codebase and enforce it in CI.
+The result is clamped to 0–100; a function with zero Halstead volume or zero SLOC scores 100. As a rough guide: **> 65** is good, **50–65** is moderate (watch for growth), and **< 50** is hard to maintain. Thresholds are a matter of taste; pick one that fits your codebase and enforce it in CI.
 
-A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown (SLOC, cyclomatic complexity, Halstead metrics, and MI) is printed instead of the gate — handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
+A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown (SLOC, cyclomatic complexity, Halstead metrics, and MI) is printed instead of the gate, handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
 
 ### `comments`
 
@@ -148,17 +148,17 @@ verifyx comments --max-lines 2 --pushback "src/**/*.ts"
 
 By default it flags **long comment blocks**. `--block-new-comments` adds a stricter, diff-based gate on top: any comment on a line changed against `HEAD` fails (machine directives like `eslint-disable` / `@ts-expect-error` and `context:`-prefixed comments are exempt).
 
-- `[pattern]` — glob, directory, or file to scan.
-- `--max-lines <n>` — fail on comment blocks longer than `n` lines (default 2).
-- `--pushback` — add AI back-pressure framing to the failure (keeping the comment "pages a human").
-- `--warn` — report the long-block violations without failing.
-- `--block-new-comments` — also fail on any comment on a line changed against `HEAD`.
-- `--ignore <glob>` — exclude files (repeatable).
+- `[pattern]`: glob, directory, or file to scan.
+- `--max-lines <n>`: fail on comment blocks longer than `n` lines (default 2).
+- `--pushback`: add AI back-pressure framing to the failure (keeping the comment "pages a human").
+- `--warn`: report the long-block violations without failing.
+- `--block-new-comments`: also fail on any comment on a line changed against `HEAD`.
+- `--ignore <glob>`: exclude files (repeatable).
 
 Prefix a comment's first line with `context:` to keep genuinely durable context:
 
 ```ts
-// context: the upstream API returns seconds, not milliseconds — do not "fix" this
+// context: the upstream API returns seconds, not milliseconds, so do not "fix" this
 const timeoutMs = timeout * 1000
 ```
 
@@ -172,20 +172,20 @@ Interactively wire verifications and the agent integration into the current proj
 verifyx init
 ```
 
-It first asks how `verify` should run — **run all built-in checks** (`verifyx all`, no `verify:*` scripts) or **pick specific checks** to wire up. Then you multi-select **agent targets** (Claude and/or other agents) — and, if you chose to pick, the **checks** — after which it:
+It first asks how `verify` should run: **run all built-in checks** (`verifyx all`, no `verify:*` scripts) or **pick specific checks** to wire up. Then you multi-select **agent targets** (Claude and/or other agents), and, if you chose to pick, the **checks**. After that it:
 
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
 - installs the external checks' tools as `--save-dev`,
-- writes the **`verify` skill** — the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
+- writes the **`verify` skill**: the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
 - appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten),
-- if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` — verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused. Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
+- if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` (verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused). Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
 
 The skill auto-triggers on "verify"/"run checks", so agents run the checks proactively; the pointer reinforces it for tools that read `CLAUDE.md`/`AGENTS.md` as standing instructions.
 
 Options:
 
-- `--defaults-only` — the non-interactive form of the "run all built-in checks" choice: do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
-- `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
+- `--defaults-only`: the non-interactive form of the "run all built-in checks" choice. Does **not** write `verify:*` scripts; wires the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
+- `--yes`: non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
 ### `verifyx upgrade-docs`
 
@@ -230,19 +230,11 @@ const { failing, passed } = analyzeComplexity({
 })
 ```
 
-Exports include `analyzeComplexity`, the check registry (`CHECKS`, `getCheck`, `defaultChecks`), `orchestrate`, `runDefaults`, `applyInit`, `loadVerifyConfig`, the individual `run*` check functions, and the lower-level complexity helpers (`calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, `forEachFunction`).
-
-## The maintainability index formula
-
-```
-MI = 171 - 5.2 * ln(HalsteadVolume) - 0.23 * CyclomaticComplexity - 16.2 * ln(SLOC)
-```
-
-Clamped to 0–100. Rough interpretation: **> 65** good, **50–65** moderate, **< 50** hard to maintain.
+Exports include `analyzeComplexity`, the check registry (`CHECKS`, `getCheck`, `recommendedChecks`), `orchestrate`, `runAll`, `applyInit`, `loadVerifyConfig`, the individual `run*` check functions, and the lower-level complexity helpers (`calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, `forEachFunction`).
 
 ## Attribution
 
-The `verify` runner, `block-comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. The idempotent agent-file scaffolding follows the MakerX data-streams CLI's `upgrade-docs`. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
+The `verify` runner, `comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. The idempotent agent-file scaffolding follows the MakerX data-streams CLI's `upgrade-docs`. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
 
 ## License
 
