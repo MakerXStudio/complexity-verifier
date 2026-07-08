@@ -1,102 +1,169 @@
-# @makerx/complexity-verifier
+# @makerx/verify
 
-A maintainability-index checker for TypeScript aimed at providing better back-pressure to AI agents. It parses your `.ts`/`.tsx` sources with the TypeScript compiler API and, for every function, computes:
+A growing collection of code **verifications** that give AI coding agents back-pressure against writing hard-to-maintain code — and improve code quality for everyone.
 
-- **Cyclomatic complexity** — the number of independent paths through the code.
-- **Halstead volume** — a size measure derived from the operators and operands used.
-- **SLOC** — source lines of code (blank lines and comments excluded).
-- **Maintainability index (MI)** — a 0–100 score combining the three above.
+`verify` ships both:
 
-A file's score is the **minimum MI across its functions**, and the check **fails any file below the `--threshold`**. Lower MI means harder to maintain.
+- a **CLI** that orchestrates a set of checks by convention, and
+- the **agent commands / skills** (`.claude/`, `.agent-skills/`) that steer AI assistants to run those checks and fix what they report.
+
+Complexity was the first check. It is now just one of several, and the set grows over time.
 
 ## Install
 
-```sh
-npm i -D @makerx/complexity-verifier
-```
-
-Requires Node.js >= 24.
-
-## CLI usage
+Install as a **pinned dev dependency** — never globally. A locked version means the exact same tool runs on your machine and in CI/CD:
 
 ```sh
-# Fail if any file scores below a maintainability index of 50
-npx complexity-verifier --threshold 50 "src/**/*.ts"
+npm install --save-dev @makerx/verify
 ```
 
-Arguments:
+Requires Node.js >= 24. Invoke it via an npm script or `npx verify` — not a global binary on `PATH`.
 
-- **`<pattern>`** (positional) — a glob, a directory, or a single file. Defaults to `{src,server,shared}/**/*.ts`. A bare filename with no glob or slash is treated as a recursive search (`**/<name>`).
-- **`--threshold <n>`** — fail (exit code `1`) when any file's minimum MI is below `n`. Without a threshold the tool just reports.
-- **`--ignore <glob>`** — exclude matching files. Repeatable. Appended to the default ignore of `**/*test.ts*`.
-
-When exactly one file is matched, the tool prints a detailed per-function breakdown (SLOC, cyclomatic complexity, Halstead metrics, and MI) instead of the pass/fail report — handy when diagnosing a single file.
-
-## Comment-block check (opt-in)
-
-AI agents love to pad code with long comment blocks that narrate _what_ the code does rather than _why_. Such comments add no value, rot as the surrounding code changes (and LLMs sometimes trust the stale comment over the code), and inflate complexity. This opt-in check pushes back on them.
+The quickest way to wire it into a project:
 
 ```sh
-# Fail if any comment block is longer than 2 lines
-npx complexity-verifier --max-comment-block-lines 2 "src/**/*.ts"
+npx verify init
 ```
 
-- **`--max-comment-block-lines <n>`** — enable the check and fail (exit code `1`) on any comment block with **more than** `n` lines. A block is a run of consecutive whole-line `//` comments or a `/* … */` block comment. Runs independently of `--threshold`.
-- **`--comment-block-pushback`** — add AI back-pressure framing to the failure message (a warning that keeping the comment pages a human for approval). Colleagues have found this framing stops an agent from reflexively silencing the check.
-- **`--comment-block-warn`** — report violations without failing (exit code stays `0`).
+## How `verify` decides what to run
 
-**Exemptions:**
+Running `verify` with no subcommand follows a convention:
 
-- **JSDoc** — blocks opening with `/**` are never flagged.
-- **Trailing/inline comments** — `const x = 1 // note` is not a block and is ignored.
-- **`context:` escape hatch** — if a comment is genuinely durable context the code cannot express, prefix its first line with `context:` (case-insensitive) to keep it:
+- **No `verify:*` scripts in `package.json`** → it runs the **built-in default checks** in their default modes. Each check degrades gracefully — it passes or skips when it does not apply (no files, no diff, tool not installed, no rules configured).
+- **`verify:*` scripts present** → it runs **those** in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code). Add `--verbose` to stream everything.
 
-  ```ts
-  // context: the upstream API returns seconds, not milliseconds — do not "fix" this
-  const timeoutMs = timeout * 1000
-  ```
+You take control by adding `verify:*` scripts. Each can call a built-in or run your own command:
 
-Example in `package.json`:
-
-```json
+```jsonc
 {
   "scripts": {
-    "verify:complexity": "complexity-verifier --threshold 50 \"src/**/*.ts\""
-  }
+    "verify": "verify",
+    "verify:complexity": "verify complexity --threshold 50 \"src/**/*.ts\"",
+    "verify:knip": "knip --no-progress --treat-config-hints-as-errors",
+    "verify:types": "tsc --noEmit",
+  },
 }
 ```
 
-## Fixing failures — one file at a time
+Run a single built-in directly: `verify complexity`, `verify knip`, … and `verify list` shows them all.
 
-When the check fails, **diagnose and fix one file at a time** — do not investigate or fix multiple files in parallel. Run the CLI against a single file to see all of its metrics:
+Flags on the bare `verify` command:
+
+- `--measure` — print a status/duration summary table.
+- `--all` — run every `verify:*` script, ignoring diff-based filters.
+- `--verbose` — stream all output instead of suppressing passing runs.
+
+## Built-in checks
+
+| Check               | Kind     | What it catches                                                                                                                             |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                 |
+| `comment-block`     | native   | Comment blocks longer than the limit. JSDoc (`/**`) and `context:`-prefixed blocks are exempt.                                              |
+| `block-comments`    | native   | Any comment added to a line changed against `HEAD`. Machine directives (`eslint-disable`, `@ts-expect-error`, …) and `context:` are exempt. |
+| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                  |
+| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                            |
+| `knip`              | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                          |
+| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                   |
+| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                        |
+| `lint`              | external | Lint + autofix ([oxlint](https://oxc.rs)).                                                                                                  |
+
+External checks shell out to their tool and **skip gracefully when it is not installed** — `verify init` installs the ones you opt into. They are declared as optional `peerDependencies`.
+
+### `complexity`
 
 ```sh
-npx complexity-verifier src/some/hard-to-maintain-file.ts
+verify complexity --threshold 50 "src/**/*.ts"
 ```
 
-For larger files, start by extracting responsibilities into smaller files; then reduce branching and simplify expressions in the worst-scoring functions.
+- `[pattern]` — glob, directory, or file. Defaults to `{src,server,shared}/**/*.ts`.
+- `--threshold <n>` — fail when any file's minimum maintainability index is below `n`.
+- `--ignore <glob>` — exclude files (repeatable; appended to the default `**/*test.ts*`).
+
+A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown is printed instead of the gate — handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
+
+### `comment-block`
+
+```sh
+verify comment-block --max-lines 2 --pushback "src/**/*.ts"
+```
+
+- `--max-lines <n>` — fail on comment blocks longer than `n` lines (default 2).
+- `--pushback` — add AI back-pressure framing to the failure (keeping the comment "pages a human").
+- `--warn` — report without failing.
+- `--ignore <glob>` — exclude files (repeatable).
+
+Prefix a comment's first line with `context:` to keep genuinely durable context:
+
+```ts
+// context: the upstream API returns seconds, not milliseconds — do not "fix" this
+const timeoutMs = timeout * 1000
+```
+
+## Scaffolding a project
+
+### `verify init`
+
+Interactively wire verifications and agent files into the current project:
+
+```sh
+verify init
+```
+
+It lets you multi-select **checks** and **agent targets** (Claude `.claude/`, and/or cross-vendor `.agent-skills/`), then:
+
+- writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
+- installs the external checks' tools as `--save-dev`,
+- emits the agent command/skill files.
+
+Options:
+
+- `--defaults-only` — do **not** write `verify:*` scripts; rely on `verify`'s built-in defaults (still installs opted-in tools and writes agent files).
+- `--yes` — non-interactive; use `--check <name>` (repeatable), `--no-claude`, `--agents`.
+
+### `verify upgrade-docs`
+
+Idempotently create/refresh the managed agent files (created / updated / unchanged; refuses to write through symlinks):
+
+```sh
+verify upgrade-docs            # both targets
+verify upgrade-docs --no-agents  # only .claude/
+```
+
+## Configuration
+
+Some checks read per-repo config from `verify.config.json`, or a `verify` key in `package.json`:
+
+```jsonc
+{
+  "verify": {
+    "blockComments": { "ignore": ["**/*.generated.ts"] },
+    "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
+    "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
+    "filters": { "verify:web": "web/**" },
+  },
+}
+```
+
+`filters` scopes a `verify:*` script to a diff glob: it is skipped unless a changed file matches (bypass with `verify --all`).
+
+## CI/CD
+
+Because it is a pinned dev dependency, CI runs the identical tool:
+
+```yaml
+- run: npm ci
+- run: npx verify --measure
+```
 
 ## Programmatic API
 
-The package is also usable as a library:
-
 ```ts
-import { analyzeComplexity } from '@makerx/complexity-verifier'
+import { analyzeComplexity, orchestrate, CHECKS } from '@makerx/verify'
 
-const { results, failing, passed } = analyzeComplexity({
-  pattern: 'src/**/*.ts',
-  ignore: ['**/*.generated.ts'],
-  threshold: 50,
-})
-
-if (!passed) {
-  for (const { file, min, avg } of failing) {
-    console.error(`${file}: min MI ${min.toFixed(1)} (avg ${avg.toFixed(1)})`)
-  }
-}
+const { failing, passed } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
 ```
 
-Lower-level metric helpers are also exported: `calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, and `forEachFunction`.
+Exports include `analyzeComplexity`, the check registry (`CHECKS`, `getCheck`, `defaultChecks`), `orchestrate`, `runDefaults`, `applyInit`, `loadVerifyConfig`, the individual `run*` check functions, and the lower-level complexity helpers (`calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, `forEachFunction`).
 
 ## The maintainability index formula
 
@@ -104,23 +171,11 @@ Lower-level metric helpers are also exported: `calculateCyclomaticComplexity`, `
 MI = 171 - 5.2 * ln(HalsteadVolume) - 0.23 * CyclomaticComplexity - 16.2 * ln(SLOC)
 ```
 
-The result is clamped to the range 0–100. A function with zero Halstead volume or zero SLOC scores 100.
-
-Rough interpretation:
-
-- **> 65** — good maintainability.
-- **50–65** — moderate; watch for growth.
-- **< 50** — hard to maintain; consider refactoring.
-
-Thresholds are a matter of taste — pick one that fits your codebase and enforce it in CI.
-
-## Publishing
-
-Releases are automated with [release-please](https://github.com/googleapis/release-please) and published to npm via **npm trusted publishing (OIDC)**. A trusted publisher for this package must be configured on npmjs.com (linking the GitHub repository and the release workflow) before the first automated publish will succeed.
+Clamped to 0–100. Rough interpretation: **> 65** good, **50–65** moderate, **< 50** hard to maintain.
 
 ## Attribution
 
-The metric algorithms are ported from [staff0rd/assist](https://github.com/staff0rd/assist/tree/75a75899d7578769a433fb8058c96dd29410c254/src/commands/complexity).
+The `verify` runner, `block-comments`, `hardcoded-colors`, and `forbidden-strings` checks are ported from [staff0rd/assist](https://github.com/staff0rd/assist); the maintainability metrics originate there too. The idempotent agent-file scaffolding follows the MakerX data-streams CLI's `upgrade-docs`. See [Steering the Vibe: Verify](https://staffordwilliams.com/blog/2025/12/14/steering-the-vibe-verify/) and [Complexity](https://staffordwilliams.com/blog/2026/02/22/steering-the-vibe-complexity/).
 
 ## License
 
