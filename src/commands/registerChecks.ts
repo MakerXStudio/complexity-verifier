@@ -1,7 +1,6 @@
 import type { Command } from 'commander'
 
-import { runBlockComments } from '../checks/block-comments.ts'
-import { runCommentBlock } from '../checks/comment-block.ts'
+import { runComments } from '../checks/comments.ts'
 import { runComplexity } from '../checks/complexity.ts'
 import { runForbiddenStrings } from '../checks/forbidden-strings.ts'
 import { runHardcodedColors } from '../checks/hardcoded-colors.ts'
@@ -28,24 +27,31 @@ export function registerChecks(program: Command): void {
     })
 
   program
-    .command('comment-block')
-    .description('Flag comment blocks longer than the limit (JSDoc / context: exempt)')
+    .command('comments')
+    .description('Flag long comment blocks (JSDoc / context: exempt); --block-new-comments also fails comments on changed lines')
     .argument('[pattern]', 'glob, directory, or file to scan')
     .option('--max-lines <n>', 'maximum comment-block length', Number)
     .option('--pushback', 'add AI back-pressure framing to the failure message')
     .option('--warn', 'report without failing the run')
+    .option('--block-new-comments', 'also fail on any comment on a line changed against HEAD')
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
-    .action((pattern: string | undefined, opts: { maxLines?: number; pushback?: boolean; warn?: boolean; ignore: string[] }) => {
-      finish(runCommentBlock({ pattern, maxLines: opts.maxLines, pushback: opts.pushback, warn: opts.warn, ignore: opts.ignore }).ok)
-    })
-
-  program
-    .command('block-comments')
-    .description('Fail on any comment added to a line changed against HEAD')
-    .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
-    .action((opts: { ignore: string[] }) => {
-      finish(runBlockComments({ ignore: opts.ignore }).ok)
-    })
+    .action(
+      (
+        pattern: string | undefined,
+        opts: { maxLines?: number; pushback?: boolean; warn?: boolean; blockNewComments?: boolean; ignore: string[] },
+      ) => {
+        finish(
+          runComments({
+            pattern,
+            maxLines: opts.maxLines,
+            pushback: opts.pushback,
+            warn: opts.warn,
+            blockNewComments: opts.blockNewComments,
+            ignore: opts.ignore,
+          }).ok,
+        )
+      },
+    )
 
   program
     .command('hardcoded-colors')

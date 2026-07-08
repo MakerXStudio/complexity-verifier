@@ -1,21 +1,20 @@
 import fs from 'node:fs'
 
-import { runBlockComments } from './block-comments.ts'
-import { runCommentBlock } from './comment-block.ts'
+import { runComments } from './comments.ts'
 import { runComplexity } from './complexity.ts'
 import { defineExternalCheck } from './external.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
 import type { Check, CheckResult } from './types.ts'
 
-function nativeCheck(name: string, description: string, recommended: boolean, run: () => CheckResult): Check {
+function nativeCheck(name: string, description: string, recommended: boolean, run: () => CheckResult, script = `verifyx ${name}`): Check {
   return {
     name,
     description,
     kind: 'native',
     recommended,
     // Native checks scaffold as a call back into this CLI's own subcommand.
-    scaffold: { script: `verifyx ${name}` },
+    scaffold: { script },
     runDefault: async () => run(),
   }
 }
@@ -23,8 +22,13 @@ function nativeCheck(name: string, description: string, recommended: boolean, ru
 // context: checks are named for their function, never the tool behind them (see each check's bin/devDeps).
 export const CHECKS: Check[] = [
   nativeCheck('complexity', 'Maintainability-index gate (cyclomatic + Halstead + SLOC)', true, () => runComplexity()),
-  nativeCheck('comment-block', 'Flag comment blocks longer than the limit (JSDoc / context: exempt)', true, () => runCommentBlock()),
-  nativeCheck('block-comments', 'Fail on any comment added to a line changed against HEAD', false, () => runBlockComments()),
+  nativeCheck(
+    'comments',
+    'Flag long comment blocks (JSDoc / context: exempt); --block-new-comments also fails comments on changed lines',
+    true,
+    () => runComments({ pushback: true }),
+    'verifyx comments --pushback',
+  ),
   nativeCheck('hardcoded-colors', 'Fail on literal hex / 0x colour values in source', false, () => runHardcodedColors()),
   nativeCheck('forbidden-strings', 'Fail on disallowed JSON config values (rules from verify config)', false, () => runForbiddenStrings()),
   defineExternalCheck({

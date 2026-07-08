@@ -8,8 +8,7 @@ describe('check registry', () => {
     expect(names).toEqual(
       expect.arrayContaining([
         'complexity',
-        'comment-block',
-        'block-comments',
+        'comments',
         'hardcoded-colors',
         'forbidden-strings',
         'lint',

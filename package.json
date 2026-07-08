@@ -54,7 +54,7 @@
     "verify:format": "verifyx format",
     "verify:check-types": "verifyx check-types",
     "verify:complexity": "verifyx complexity --threshold 50 \"src/**/*.ts\"",
-    "verify:comment-block": "verifyx comment-block --max-lines 1 --pushback \"src/**/*.ts\"",
+    "verify:comments": "verifyx comments --max-lines 1 --pushback \"src/**/*.ts\"",
     "verify:hardcoded-colors": "verifyx hardcoded-colors",
     "verify:forbidden-strings": "verifyx forbidden-strings",
     "verify:unused-code": "verifyx unused-code",

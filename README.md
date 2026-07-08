@@ -4,7 +4,7 @@ A growing collection of code **verifications** that give AI coding agents back-p
 
 `verify` ships both:
 
-- a **CLI** that orchestrates a set of checks by convention, and
+- a **CLI** that orchestrates a set of checks by convention that are designed to be executed by AI agents as well as CI servers, and
 - a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run those checks and fix what they report.
 
 Complexity was the first check. It is now just one of several, and the set grows over time.
@@ -79,19 +79,18 @@ Flags on the bare `verifyx` command:
 
 ## Built-in checks
 
-| Check               | Kind     | What it catches                                                                                                                             |
-| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                 |
-| `comment-block`     | native   | Comment blocks longer than the limit. JSDoc (`/**`) and `context:`-prefixed blocks are exempt.                                              |
-| `block-comments`    | native   | Any comment added to a line changed against `HEAD`. Machine directives (`eslint-disable`, `@ts-expect-error`, …) and `context:` are exempt. |
-| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                  |
-| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                            |
-| `lint`              | external | Lint — auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                         |
-| `format`            | external | Formatting — writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                        |
-| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                             |
-| `knip`              | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                          |
-| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                   |
-| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                        |
+| Check               | Kind     | What it catches                                                                                                                                                                                                                           |
+| ------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                               |
+| `comments`          | native   | Comment blocks longer than the limit (JSDoc / `context:` exempt); with `--block-new-comments`, also any comment on a line changed against `HEAD` (machine directives like `eslint-disable` / `@ts-expect-error`, and `context:`, exempt). |
+| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                |
+| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                          |
+| `lint`              | external | Lint — auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                       |
+| `format`            | external | Formatting — writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                      |
+| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                           |
+| `knip`              | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                        |
+| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                 |
+| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                      |
 
 External checks shell out to their tool and **skip gracefully when it is not installed** — `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
@@ -109,15 +108,19 @@ verifyx complexity --threshold 50 "src/**/*.ts"
 
 A file's score is the **minimum MI across its functions**. When exactly one file matches, a detailed per-function breakdown is printed instead of the gate — handy for diagnosing one file at a time. **Fix a failure by splitting the file**, not by gaming the metric (deleting comments, joining lines, shortening names).
 
-### `comment-block`
+### `comments`
 
 ```sh
-verifyx comment-block --max-lines 2 --pushback "src/**/*.ts"
+verifyx comments --max-lines 2 --pushback "src/**/*.ts"
 ```
 
+By default it flags **long comment blocks**. `--block-new-comments` adds a stricter, diff-based gate on top: any comment on a line changed against `HEAD` fails (machine directives like `eslint-disable` / `@ts-expect-error` and `context:`-prefixed comments are exempt).
+
+- `[pattern]` — glob, directory, or file to scan.
 - `--max-lines <n>` — fail on comment blocks longer than `n` lines (default 2).
 - `--pushback` — add AI back-pressure framing to the failure (keeping the comment "pages a human").
-- `--warn` — report without failing.
+- `--warn` — report the long-block violations without failing.
+- `--block-new-comments` — also fail on any comment on a line changed against `HEAD`.
 - `--ignore <glob>` — exclude files (repeatable).
 
 Prefix a comment's first line with `context:` to keep genuinely durable context:
@@ -168,7 +171,7 @@ Some checks read per-repo config from `verify.config.json`, or a `verify` key in
 ```jsonc
 {
   "verify": {
-    "blockComments": { "ignore": ["**/*.generated.ts"] },
+    "comments": { "ignore": ["**/*.generated.ts"] },
     "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
     "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
   },
@@ -189,7 +192,10 @@ Because it is a pinned dev dependency, CI runs the identical tool:
 ```ts
 import { analyzeComplexity, orchestrate, CHECKS } from '@makerx/verify'
 
-const { failing, passed } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
+const { failing, passed } = analyzeComplexity({
+  pattern: 'src/**/*.ts',
+  threshold: 50,
+})
 ```
 
 Exports include `analyzeComplexity`, the check registry (`CHECKS`, `getCheck`, `defaultChecks`), `orchestrate`, `runDefaults`, `applyInit`, `loadVerifyConfig`, the individual `run*` check functions, and the lower-level complexity helpers (`calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`, `scoreFiles`, `findSourceFiles`, `forEachFunction`).

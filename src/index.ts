@@ -9,8 +9,7 @@ export {
   resolvePattern,
   scoreFiles,
 } from './analyze.ts'
-export { runBlockComments } from './checks/block-comments.ts'
-export { runCommentBlock } from './checks/comment-block.ts'
+export { type CommentsOptions, runComments } from './checks/comments.ts'
 export { runComplexity } from './checks/complexity.ts'
 export { runForbiddenStrings } from './checks/forbidden-strings.ts'
 export { runHardcodedColors } from './checks/hardcoded-colors.ts'

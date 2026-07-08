@@ -39,7 +39,7 @@ describe('entryCheckName', () => {
   })
   it('strips a trailing :fix so a variant maps to its base check', () => {
     expect(entryCheckName('verify:lint:fix')).toBe('lint')
-    expect(entryCheckName('verify:comment-block:fix')).toBe('comment-block')
+    expect(entryCheckName('verify:comments:fix')).toBe('comments')
   })
 })
 

@@ -9,7 +9,7 @@ export type ForbiddenStringsRule = {
 }
 
 export type VerifyConfig = {
-  blockComments?: { ignore?: string[] }
+  comments?: { ignore?: string[] }
   hardcodedColors?: { ignore?: string[]; root?: string }
   forbiddenStrings?: ForbiddenStringsRule[]
 }
