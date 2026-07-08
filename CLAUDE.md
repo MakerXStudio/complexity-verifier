@@ -1,13 +1,15 @@
 # @makerx/verify
 
-A growing collection of code **verifications** that give AI coding agents back-pressure against writing hard-to-maintain code. Ships a `verifyx` CLI that orchestrates native + external checks by convention, plus a scaffolder (`verifyx init` / `verifyx upgrade-docs`) that drops the checks, a `verify` skill (`.claude/skills` + `.agent-skills`), and a `CLAUDE.md`/`AGENTS.md` pointer into a project.
+A `verifyx` CLI that orchestrates native + external code checks by convention, plus a scaffolder (`verifyx init` / `upgrade-docs`) that drops the checks, a `verify` skill (`.claude/skills` + `.agent-skills`), and a `CLAUDE.md`/`AGENTS.md` pointer into a project. See [README.md](./README.md) for the full design and check reference.
 
-**The CLI binary is `verifyx`, not `verify`.** `verify` is a Windows `cmd` builtin, and `npm run` bodies + `npx` resolve through `cmd` there, so a bare `verify` runs the builtin. `verifyx` (verify + fix) avoids that on all platforms. The npm **script** stays named `verify` (`npm run verify` is a script lookup, not command resolution) and the package stays `@makerx/verify`. Locally, `prepare` (`scripts/dev-verifyx-bin.mjs`) writes a `node_modules/.bin/verifyx` shim → `node src/cli.ts`, so the repo's own `verify:*` scripts call `verifyx <check>` exactly like a consumer's; `prepare` never runs for registry consumers.
+## Verification
 
-## After making changes, run `npm run verify`
+After making code changes, run `npm run verify` and fix everything it reports before finishing. Don't silence checks or game the metrics.
 
-`npm run verify` runs `verifyx` — the orchestrator over the repo's own `verify:*` scripts, which call the built-in checks (`verifyx lint|format|check-types|complexity|comments|…`). It runs them in parallel and suppresses output unless one fails. Bare `verifyx` runs **only** the defined `verify:*` scripts (nothing if none); `verifyx all` runs **every** built-in check, with a `verify:<name>` script overriding its matching built-in.
+`npm run verify` runs this repo's own `verify:*` scripts (the built-in checks) in parallel plus the test suite, and stays silent unless something fails. It auto-fixes lint/format locally and is check-only under CI.
 
-**Fix locally, check in CI.** Run locally, `verifyx` **auto-fixes** what it can (`oxlint --fix`, `oxfmt`) so you don't waste effort hand-fixing lint/format. Under CI (`CI` env set — both workflows call `npm run verify` via the shared workflow's `lint-script`) the same command is **check-only** and fails if anything isn't already right. Force a mode with `verifyx --check` / `verifyx --fix`. (Mode propagates to the `verify:*` child scripts via the `VERIFY_MODE` env, so they carry no `--check`/`--fix` flags — those live only on the root command.)
+## Working in this repo
 
-`verify:comments` runs with `--pushback`, so a flagged comment block prints a warning that keeping it pages a human. Take that seriously: delete the comment, or make the code self-explanatory, before reaching for the `context:` escape hatch.
+- **The CLI binary is `verifyx`, not `verify`** — `verify` is a Windows `cmd` builtin that shadows it under `npm run`/`npx`. The npm _script_ stays named `verify` (so `npm run verify` works) and the package stays `@makerx/verify`. In dev, the `prepare` script (`scripts/dev-verifyx-bin.mjs`) writes a `node_modules/.bin/verifyx` shim pointing at `node src/cli.ts`, so the repo dogfoods `verifyx <check>` from source; run the CLI directly with `node src/cli.ts <check>`.
+- **`verify:comments` runs with `--max-lines 1`**, so never write a 2-line `//` comment block — use a single line, JSDoc (`/** … */`), or a `// context:` prefix. This is the check that trips changes most often.
+- **`duplicate-code` (jscpd)** fails on near-identical blocks — extract a shared helper rather than repeating option lists or logic.
