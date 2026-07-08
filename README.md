@@ -146,16 +146,20 @@ A file's score is the **minimum MI across its functions**. When exactly one file
 verifyx comments --max-lines 2 --pushback "src/**/*.ts"
 ```
 
-By default it flags **long comment blocks**. `--block-new-comments` adds a stricter, diff-based gate on top: any comment on a line changed against `HEAD` fails (machine directives like `eslint-disable` / `@ts-expect-error` and `context:`-prefixed comments are exempt).
+Capable coding models (Opus 4.8 very much included) love to narrate their work: multi-line comment blocks explaining _what_ the code does rather than _why_. They add little value, drift out of sync as the code changes (and a later reader, human or LLM, may trust the stale comment over the code), and quietly grow the surface area you have to maintain. By default this check pushes back on exactly that, flagging any comment block taller than `--max-lines` (default 2) so the pressure is on the code to document itself.
 
 - `[pattern]`: glob, directory, or file to scan.
 - `--max-lines <n>`: fail on comment blocks longer than `n` lines (default 2).
-- `--pushback`: add AI back-pressure framing to the failure (keeping the comment "pages a human").
-- `--warn`: report the long-block violations without failing.
-- `--block-new-comments`: also fail on any comment on a line changed against `HEAD`.
+- `--pushback`: reframe the failure message as back-pressure aimed at an AI agent (see below).
+- `--warn`: report the long-block violations without failing the run.
+- `--block-new-comments`: also fail on any comment on a line changed against `HEAD` (see below).
 - `--ignore <glob>`: exclude files (repeatable).
 
-Prefix a comment's first line with `context:` to keep genuinely durable context:
+**`--pushback` is the clever bit.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider and remove the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it stops agents silencing the check far more reliably than a plain error does.
+
+If you want to go further and block **new** comments outright, override the `verify:comments` script and add `--block-new-comments`. That turns on a stricter, diff-based gate on top of the long-block check: any comment sitting on a line you changed against `HEAD` fails, whether you added or merely edited it. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
+
+Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`) is always allowed, and prefixing a comment's first line with `context:` marks it as durable context the code itself can't express:
 
 ```ts
 // context: the upstream API returns seconds, not milliseconds, so do not "fix" this
