@@ -4,7 +4,7 @@ import path from 'node:path'
 import { color } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { runCommand } from '../shared/spawn.ts'
-import type { Check, CheckResult } from './types.ts'
+import type { Check, CheckMode, CheckResult } from './types.ts'
 
 const BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
 
@@ -39,6 +39,11 @@ export type ExternalCheckSpec = {
   canRun?: () => boolean
 }
 
+/** Pick the command for the run mode: the fix command only in fix mode and only when the check is fixable. */
+export function selectCommand(spec: Pick<ExternalCheckSpec, 'checkCommand' | 'fixCommand'>, mode: CheckMode): string {
+  return mode === 'fix' && spec.fixCommand ? spec.fixCommand : spec.checkCommand
+}
+
 /** Build a Check that shells out to an external tool, skipping gracefully when the tool cannot run. */
 export function defineExternalCheck(spec: ExternalCheckSpec): Check {
   return {
@@ -57,7 +62,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         console.log(color.dim(`${spec.name}: not applicable here — skipping`))
         return { name: spec.name, ok: true, skipped: true }
       }
-      const command = resolveMode() === 'fix' && spec.fixCommand ? spec.fixCommand : spec.checkCommand
+      const command = selectCommand(spec, resolveMode())
       const code = await runCommand(command, { env: envWithLocalBin() })
       return { name: spec.name, ok: code === 0 }
     },
