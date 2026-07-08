@@ -1,0 +1,69 @@
+name: Publish NPM package
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  ci:
+    name: CI
+    uses: makerxstudio/shared-config/.github/workflows/node-ci.yml@28ab4b75c385b9b0880e5736ca8114caaf688ab8 # main
+    with:
+      working-directory: .
+      node-version: 24.x
+      audit-script: npm run audit
+      test-script: npm run test:ci
+      output-test-results: true
+
+  release-please:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      # publish_tag controls the publish job below:
+      #   latest  -> release PR merged; publish the version release-please committed
+      #   beta    -> ordinary merge; publish publish_version as a prerelease
+      #   (empty) -> no release and no open release PR; publish job is skipped
+      publish_tag: ${{ steps.resolve.outputs.tag }}
+      publish_version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        id: release
+        with:
+          release-type: node
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+      - name: Resolve publish tag and version
+        id: resolve
+        env:
+          RELEASE_CREATED: ${{ steps.release.outputs.release_created }}
+          PR: ${{ steps.release.outputs.pr }}
+        run: |
+          if [ "$RELEASE_CREATED" = "true" ]; then
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          elif [ -n "$PR" ]; then
+            # Ordinary merge: prerelease the upcoming version, read from the open
+            # release PR title (e.g. "chore(main): release 1.0.0").
+            NEXT=$(printf '%s' "$PR" | jq -r .title | grep -oE -m1 '[0-9]+\.[0-9]+\.[0-9]+')
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+            echo "version=${NEXT}-beta.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  publish:
+    needs: [ci, release-please]
+    if: ${{ needs.release-please.outputs.publish_tag != '' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: makerxstudio/shared-config/.github/workflows/node-trusted-publish.yml@28ab4b75c385b9b0880e5736ca8114caaf688ab8 # main
+    with:
+      node-version: 24.x
+      access: public
+      package-path: package.json
+      tag: ${{ needs.release-please.outputs.publish_tag }}
+      version: ${{ needs.release-please.outputs.publish_version }}
