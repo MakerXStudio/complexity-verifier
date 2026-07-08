@@ -50,6 +50,8 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
+    "verify": "run-p lint:fix format verify:complexity",
+    "verify:complexity": "node src/cli.ts --threshold 50 --max-comment-block-lines 1 --comment-block-pushback \"src/**/*.ts\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ci": "vitest run --reporter=default --reporter=junit --outputFile=test-results.xml",
