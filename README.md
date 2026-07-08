@@ -41,6 +41,17 @@ Your project's `verify:*` scripts **are** the gate, and `verifyx` runs exactly w
 - **`verifyx`** (no subcommand) runs your `verify:*` scripts in parallel. Output from each is buffered and shown **only if it fails**, keeping passing runs quiet (and quieter still under Claude Code); add `--verbose` to stream everything. With **no `verify:*` scripts, nothing runs.**
 - **`verifyx all`** runs **every built-in check** (the explicit "run everything"). A `verify:<name>` script **overrides** its matching built-in, so you can swap one check's implementation without redefining the rest — e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
+**Fix/check overrides.** Alongside a `verify:<name>` (check-mode) script you can define a `verify:<name>:fix` variant. `verifyx` runs the `:fix` variant in fix mode (locally) and the base in check mode (CI), and never both — so an override with a non-mode-aware tool still fixes locally and only checks in CI:
+
+```jsonc
+{
+  "scripts": {
+    "verify:lint": "eslint .",
+    "verify:lint:fix": "eslint . --fix",
+  },
+}
+```
+
 You curate the gate by adding `verify:*` scripts. Prefer calling the built-ins (`verifyx <check>`) so their fix-vs-check behaviour stays centralised; drop to a raw command only for something bespoke:
 
 ```jsonc
