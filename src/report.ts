@@ -40,7 +40,7 @@ export function printMaintainabilityReport(
 export function printFailure(failing: readonly FileScore[], threshold: number): void {
   console.error(
     color.red(
-      `\nFail: ${failing.length} file(s) below threshold ${threshold}. Maintainability index (0–100) is derived from Halstead volume, cyclomatic complexity, and lines of code.\n\n⚠️  ${color.bold('Diagnose and fix one file at a time')} — do not investigate or fix multiple files in parallel. Run the CLI against a single <file> to see all metrics for one file. For larger files, start by extracting responsibilities into smaller files.`,
+      `\nFail: ${failing.length} file(s) below threshold ${threshold}. Maintainability index (0–100) is derived from Halstead volume, cyclomatic complexity, and lines of code.\n\n⚠️  ${color.bold('Diagnose and fix one file at a time')} — do not investigate or fix multiple files in parallel. Run the CLI against a single <file> to see all metrics for one file.\n\n${color.bold('The fix is to split the file')}: move functions/responsibilities into new files so each stays small. Do NOT game the metric by deleting comments, collapsing whitespace, joining lines, or shortening names — that reduces readability without reducing complexity, and formatting/lint will often undo it anyway.`,
     ),
   )
 }
