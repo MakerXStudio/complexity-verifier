@@ -36,15 +36,20 @@ npx verifyx init
 
 ## How `verifyx` decides what to run
 
-A **`verify:*` script** is any npm script in your `package.json` whose name starts with `verify:` — `verify:lint`, `verify:complexity`, `verify:custom`, and so on. Each one is a single check. `verifyx` runs them all **in parallel**, and together they form your project's verification gate. You decide which checks make up that gate by adding these scripts (`verifyx init` scaffolds a starting set).
+A **`verify:*` script** is any npm script in your `package.json` whose name starts with `verify:` — `verify:lint`, `verify:complexity`, `verify:custom`, and so on. Each one is a single **check**. `verifyx` runs them all **in parallel**, and together they form your project's verification gate. You decide which checks make up that gate by adding these scripts (`verifyx init` scaffolds a starting set).
+
+A check is either **built-in** or **custom**:
+
+- **Built-in checks** ship with `verifyx` (see [Built-in checks](#built-in-checks) below) and are invoked as subcommands — `verifyx lint`, `verifyx complexity`, … A `verify:*` script wires one in by calling it: `"verify:lint": "verifyx lint"`.
+- **Custom checks** are any command of your own, wired as a `verify:*` script that runs whatever you like: `"verify:custom": "node ./scripts/my-check.mjs"`. They aren't `verifyx` subcommands — you run them through the gate, or directly via `npm run verify:custom`.
 
 There are three ways to invoke the CLI, from "all my checks" down to "one specific check":
 
-| Command           | What it runs                                                                                 |
-| ----------------- | -------------------------------------------------------------------------------------------- |
-| `verifyx`         | Every `verify:*` script — the set of checks you've curated. With none defined, nothing runs. |
-| `verifyx all`     | Every built-in check, with default options.                                                  |
-| `verifyx <check>` | A single built-in, e.g. `verifyx complexity`. `verifyx list` shows them all.                 |
+| Command           | What it runs                                                                                         |
+| ----------------- | ---------------------------------------------------------------------------------------------------- |
+| `verifyx`         | Every `verify:*` script — the set of checks you've curated (built-in and custom). None defined → nothing runs. |
+| `verifyx all`     | Every built-in check, with default options (ignores your `verify:*` list, except as overrides).      |
+| `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                 |
 
 ### `verifyx` — run your curated checks
 
