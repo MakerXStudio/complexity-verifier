@@ -15,6 +15,6 @@ jobs:
     with:
       node-version: 24.x
       run-build: true
-      build-script: build
-      test-script: test:ci
-      audit-script: audit
+      build-script: npm run build
+      test-script: npm run test:ci
+      audit-script: npm run audit
