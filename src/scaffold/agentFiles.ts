@@ -2,39 +2,44 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { type ManagedFileResult, writeManaged } from './writeManaged.ts'
+import { ensurePointer, type ManagedFileResult, writeManaged } from './writeManaged.ts'
 
 export type AgentTarget = 'claude' | 'agents'
-
-type ManagedFile = { template: string; dest: string }
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url))
 // src/scaffold/*.ts and dist/scaffold/*.mjs both sit two levels below the package root, where templates/ lives.
 const TEMPLATES_DIR = path.join(moduleDir, '..', '..', 'templates')
 
+// A file already telling agents to run `npm run verify` is treated as covered — the pointer is not re-added.
+const POINTER_MARKER = 'npm run verify'
+
 function readTemplate(relativePath: string): string {
   return fs.readFileSync(path.join(TEMPLATES_DIR, ...relativePath.split('/')), 'utf-8')
 }
 
-/** The managed agent files to emit for the chosen targets. Claude gets a slash command + skill; others get a skill. */
-function managedFilesFor(targets: readonly AgentTarget[]): ManagedFile[] {
-  const files: ManagedFile[] = []
-  if (targets.includes('claude')) {
-    files.push({ template: 'commands/verify.md', dest: '.claude/commands/verify.md' })
-    files.push({ template: 'skills/verify/SKILL.md', dest: '.claude/skills/verify/SKILL.md' })
-  }
-  if (targets.includes('agents')) {
-    files.push({ template: 'skills/verify/SKILL.md', dest: '.agent-skills/verify/SKILL.md' })
-  }
-  return files
-}
-
-/** Write (idempotently) the managed agent files for the chosen targets under `cwd`. */
+/**
+ * Emit the `verify` integration for the chosen targets under `cwd`:
+ * - the same `SKILL.md` goes to Claude (`.claude/skills/verify/`) and the cross-vendor tree
+ *   (`.agent-skills/verify/`), so the integration is identical across agents;
+ * - a one-line pointer is appended to the matching instruction file (`CLAUDE.md` / `AGENTS.md`).
+ *
+ * Skills are CLI-owned (created/updated as a whole). The instruction files are user-owned, so the pointer is
+ * only appended when absent and existing content is never rewritten.
+ */
 export function writeAgentFiles(cwd: string, targets: readonly AgentTarget[]): ManagedFileResult[] {
   const results: ManagedFileResult[] = []
-  for (const file of managedFilesFor(targets)) {
-    writeManaged(path.join(cwd, ...file.dest.split('/')), readTemplate(file.template), results)
+  const skill = readTemplate('skills/verify/SKILL.md')
+  const guidance = readTemplate('verify-guidance.md')
+
+  if (targets.includes('claude')) {
+    writeManaged(path.join(cwd, '.claude', 'skills', 'verify', 'SKILL.md'), skill, results)
+    ensurePointer(path.join(cwd, 'CLAUDE.md'), guidance, POINTER_MARKER, results)
   }
+  if (targets.includes('agents')) {
+    writeManaged(path.join(cwd, '.agent-skills', 'verify', 'SKILL.md'), skill, results)
+    ensurePointer(path.join(cwd, 'AGENTS.md'), guidance, POINTER_MARKER, results)
+  }
+
   results.sort((a, b) => a.path.localeCompare(b.path))
   return results
 }

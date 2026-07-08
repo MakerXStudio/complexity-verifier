@@ -55,7 +55,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     scaffold: { script: `verifyx ${spec.name}`, devDeps: spec.devDeps },
     async runDefault(): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {
-        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`verifyx init\`)`))
+        console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`npx verifyx init\`)`))
         return { name: spec.name, ok: true, skipped: true }
       }
       if (spec.canRun && !spec.canRun()) {

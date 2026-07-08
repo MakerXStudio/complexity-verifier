@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { type ManagedFileResult, summarise, writeManaged } from './writeManaged.ts'
+import { ensurePointer, type ManagedFileResult, summarise, writeManaged } from './writeManaged.ts'
 
 let dir: string
 
@@ -52,7 +52,53 @@ describe('writeManaged', () => {
         { path: 'a', action: 'created' },
         { path: 'b', action: 'unchanged' },
         { path: 'c', action: 'created' },
+        { path: 'd', action: 'appended' },
       ]),
-    ).toEqual({ created: 2, updated: 0, unchanged: 1 })
+    ).toEqual({ created: 2, updated: 0, unchanged: 1, appended: 1 })
+  })
+})
+
+describe('ensurePointer', () => {
+  const block = '## Verification\n\nRun `/verify` and fix what it reports.\n'
+
+  it('creates the file with the block when missing', () => {
+    const file = path.join(dir, 'CLAUDE.md')
+    const results: ManagedFileResult[] = []
+    ensurePointer(file, block, '/verify', results)
+    expect(results[0]?.action).toBe('created')
+    expect(fs.readFileSync(file, 'utf-8')).toBe(block)
+  })
+
+  it('leaves the file untouched when the marker is already present', () => {
+    const file = path.join(dir, 'CLAUDE.md')
+    const original = '# My project\n\nSome guidance mentioning /verify already.\n'
+    fs.writeFileSync(file, original)
+    const results: ManagedFileResult[] = []
+    ensurePointer(file, block, '/verify', results)
+    expect(results[0]?.action).toBe('unchanged')
+    expect(fs.readFileSync(file, 'utf-8')).toBe(original)
+  })
+
+  it('appends the block (keeping existing content) when the marker is absent', () => {
+    const file = path.join(dir, 'CLAUDE.md')
+    const original = '# My project\n\nExisting instructions.\n'
+    fs.writeFileSync(file, original)
+    const results: ManagedFileResult[] = []
+    ensurePointer(file, block, '/verify', results)
+    expect(results[0]?.action).toBe('appended')
+    const after = fs.readFileSync(file, 'utf-8')
+    expect(after.startsWith(original)).toBe(true)
+    expect(after).toContain(block)
+  })
+
+  it('is idempotent — a second call after appending is a no-op', () => {
+    const file = path.join(dir, 'CLAUDE.md')
+    fs.writeFileSync(file, '# My project\n')
+    ensurePointer(file, block, '/verify', [])
+    const afterFirst = fs.readFileSync(file, 'utf-8')
+    const results: ManagedFileResult[] = []
+    ensurePointer(file, block, '/verify', results)
+    expect(results[0]?.action).toBe('unchanged')
+    expect(fs.readFileSync(file, 'utf-8')).toBe(afterFirst)
   })
 })

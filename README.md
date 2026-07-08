@@ -5,7 +5,7 @@ A growing collection of code **verifications** that give AI coding agents back-p
 `verify` ships both:
 
 - a **CLI** that orchestrates a set of checks by convention, and
-- the **agent commands / skills** (`.claude/`, `.agent-skills/`) that steer AI assistants to run those checks and fix what they report.
+- a **verify skill** (`.claude/skills/`, `.agent-skills/`) + a one-line `CLAUDE.md`/`AGENTS.md` pointer that steer AI assistants to run those checks and fix what they report.
 
 Complexity was the first check. It is now just one of several, and the set grows over time.
 
@@ -130,30 +130,33 @@ const timeoutMs = timeout * 1000
 
 ### `verifyx init`
 
-Interactively wire verifications and agent files into the current project:
+Interactively wire verifications and the agent integration into the current project:
 
 ```sh
 verifyx init
 ```
 
-It lets you multi-select **checks** and **agent targets** (Claude `.claude/`, and/or cross-vendor `.agent-skills/`), then:
+It lets you multi-select **checks** and **agent targets** (Claude and/or other agents), then:
 
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
 - installs the external checks' tools as `--save-dev`,
-- emits the agent command/skill files.
+- writes the **`verify` skill** — the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
+- appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten).
+
+The skill auto-triggers on "verify"/"run checks", so agents run the checks proactively; the pointer reinforces it for tools that read `CLAUDE.md`/`AGENTS.md` as standing instructions.
 
 Options:
 
-- `--defaults-only` — do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes agent files).
+- `--defaults-only` — do **not** write `verify:*` scripts; wire the top-level `verify` script to `verifyx all` so it runs every built-in (still installs opted-in tools and writes the skill + pointer).
 - `--yes` — non-interactive; use `--select <name>` (repeatable), `--no-claude`, `--agents`.
 
 ### `verifyx upgrade-docs`
 
-Idempotently create/refresh the managed agent files (created / updated / unchanged; refuses to write through symlinks):
+Idempotently create/refresh the skill and the `CLAUDE.md`/`AGENTS.md` pointer (created / appended / updated / unchanged; refuses to write through symlinks, never rewrites your instruction files):
 
 ```sh
-verifyx upgrade-docs             # both targets
-verifyx upgrade-docs --no-agents  # only .claude/
+verifyx upgrade-docs              # Claude + other agents
+verifyx upgrade-docs --no-agents  # only .claude/ + CLAUDE.md
 ```
 
 ## Configuration

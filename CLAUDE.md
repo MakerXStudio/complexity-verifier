@@ -1,6 +1,6 @@
 # @makerx/verify
 
-A growing collection of code **verifications** that give AI coding agents back-pressure against writing hard-to-maintain code. Ships a `verifyx` CLI that orchestrates native + external checks by convention, plus a scaffolder (`verifyx init` / `verifyx upgrade-docs`) that drops the checks and agent commands into a project.
+A growing collection of code **verifications** that give AI coding agents back-pressure against writing hard-to-maintain code. Ships a `verifyx` CLI that orchestrates native + external checks by convention, plus a scaffolder (`verifyx init` / `verifyx upgrade-docs`) that drops the checks, a `verify` skill (`.claude/skills` + `.agent-skills`), and a `CLAUDE.md`/`AGENTS.md` pointer into a project.
 
 **The CLI binary is `verifyx`, not `verify`.** `verify` is a Windows `cmd` builtin, and `npm run` bodies + `npx` resolve through `cmd` there, so a bare `verify` runs the builtin. `verifyx` (verify + fix) avoids that on all platforms. The npm **script** stays named `verify` (`npm run verify` is a script lookup, not command resolution) and the package stays `@makerx/verify`. Locally, `prepare` (`scripts/dev-verifyx-bin.mjs`) writes a `node_modules/.bin/verifyx` shim → `node src/cli.ts`, so the repo's own `verify:*` scripts call `verifyx <check>` exactly like a consumer's; `prepare` never runs for registry consumers.
 

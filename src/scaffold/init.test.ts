@@ -21,7 +21,7 @@ function readScripts(): Record<string, string> {
 }
 
 describe('applyInit', () => {
-  it('writes verify:* scripts, agent files, and collects external devDeps', () => {
+  it('writes verify:* scripts, the verify skill, a CLAUDE.md pointer, and collects external devDeps', () => {
     const result = applyInit({ cwd: dir, checks: ['complexity', 'unused-code'], targets: ['claude'], defaultsOnly: false })
 
     const scripts = readScripts()
@@ -29,17 +29,21 @@ describe('applyInit', () => {
     expect(scripts['verify:unused-code']).toBe('verifyx unused-code')
     expect(scripts.verify).toBe('verifyx')
     expect(result.devDeps).toContain('knip')
-    expect(fs.existsSync(path.join(dir, '.claude', 'commands', 'verify.md'))).toBe(true)
+    // The skill (not a slash command) is the Claude integration.
     expect(fs.existsSync(path.join(dir, '.claude', 'skills', 'verify', 'SKILL.md'))).toBe(true)
+    expect(fs.existsSync(path.join(dir, '.claude', 'commands'))).toBe(false)
+    // CLAUDE.md is created with the verify pointer.
+    expect(fs.readFileSync(path.join(dir, 'CLAUDE.md'), 'utf-8')).toContain('npm run verify')
   })
 
-  it('defaults-only writes no verify:* scripts but keeps devDeps and agent files', () => {
+  it('defaults-only writes no verify:* scripts, points verify at `verifyx all`, and writes the agents skill + AGENTS.md', () => {
     const result = applyInit({ cwd: dir, checks: ['unused-code'], targets: ['agents'], defaultsOnly: true })
 
     expect(Object.keys(readScripts())).toEqual(['verify'])
     expect(readScripts().verify).toBe('verifyx all')
     expect(result.devDeps).toContain('knip')
     expect(fs.existsSync(path.join(dir, '.agent-skills', 'verify', 'SKILL.md'))).toBe(true)
+    expect(fs.readFileSync(path.join(dir, 'AGENTS.md'), 'utf-8')).toContain('npm run verify')
   })
 
   it('does not clobber an existing verify:* script', () => {

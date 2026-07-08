@@ -4,6 +4,7 @@ import enquirer from 'enquirer'
 import { CHECKS, recommendedChecks } from '../checks/registry.ts'
 import type { AgentTarget } from '../scaffold/agentFiles.ts'
 import { applyInit, type InitResult } from '../scaffold/init.ts'
+import { ACTION_MARK } from '../scaffold/writeManaged.ts'
 import { color } from '../shared/color.ts'
 import { runCommand } from '../shared/spawn.ts'
 
@@ -40,22 +41,22 @@ async function resolveSelections(opts: InitCliOptions): Promise<{ checks: string
     CHECKS.map((c) => ({ name: c.name, message: `${c.name} — ${c.description}`, enabled: c.recommended })),
   )
   const targets = (await multiselect('Select agent targets', [
-    { name: 'claude', message: 'Claude (.claude/commands + skill)', enabled: true },
-    { name: 'agents', message: 'Other agents (.agent-skills)', enabled: false },
+    { name: 'claude', message: 'Claude (.claude/skills + CLAUDE.md)', enabled: true },
+    { name: 'agents', message: 'Other agents (.agent-skills + AGENTS.md)', enabled: false },
   ])) as AgentTarget[]
   return { checks, targets }
 }
 
 function report(result: InitResult, defaultsOnly: boolean): void {
   if (defaultsOnly) {
-    console.log(color.dim('\nDefaults-only: no verify:* scripts written — `verifyx` will run the built-in default set.'))
+    console.log(color.dim('\nDefaults-only: no verify:* scripts written — the `verify` script runs `verifyx all` (every built-in).'))
   }
   console.log(color.green(`\nScripts added: ${result.addedScripts.join(', ') || '(none new)'}`))
   for (const file of result.agentFiles) {
     if (file.action === 'unchanged') continue
-    console.log(`  ${file.action === 'created' ? '+' : '~'} ${file.path}`)
+    console.log(`  ${ACTION_MARK[file.action]} ${file.path} (${file.action})`)
   }
-  console.log(color.dim('\nRun `verifyx` (or `npm run verify`) to run your verifications.'))
+  console.log(color.dim('\nRun `npm run verify` (or `npx verifyx`) to run your verifications.'))
 }
 
 /** `verifyx init` — interactively scaffold checks + agent files into the current project. */
