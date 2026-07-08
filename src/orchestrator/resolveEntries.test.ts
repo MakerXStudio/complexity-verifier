@@ -31,14 +31,6 @@ describe('resolveEntries', () => {
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { build: 'x' } }))
     expect(resolveEntries(dir)).toEqual([])
   })
-
-  it('attaches diff filters from the verify config', () => {
-    fs.writeFileSync(
-      path.join(dir, 'package.json'),
-      JSON.stringify({ scripts: { 'verify:web': 'x' }, verify: { filters: { 'verify:web': 'web/**' } } }),
-    )
-    expect(resolveEntries(dir).find((e) => e.name === 'verify:web')?.filter).toBe('web/**')
-  })
 })
 
 describe('entryCheckName', () => {

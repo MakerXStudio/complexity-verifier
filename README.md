@@ -75,7 +75,6 @@ Flags on the bare `verifyx` command:
 
 - `--check` / `--fix` — force check-only or auto-fix (defaults: fix locally, check under CI).
 - `--measure` — print a status/duration summary table.
-- `--all` — run every `verify:*` script, ignoring diff-based filters.
 - `--verbose` — stream all output instead of suppressing passing runs.
 
 ## Built-in checks
@@ -171,12 +170,9 @@ Some checks read per-repo config from `verify.config.json`, or a `verify` key in
     "blockComments": { "ignore": ["**/*.generated.ts"] },
     "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
     "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
-    "filters": { "verify:web": "web/**" },
   },
 }
 ```
-
-`filters` scopes a `verify:*` script to a diff glob: it is skipped unless a changed file matches (bypass with `verifyx --all`).
 
 ## CI/CD
 

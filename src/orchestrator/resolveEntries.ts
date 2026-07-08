@@ -7,7 +7,6 @@ export type VerifyEntry = {
   name: string
   command: string
   cwd: string
-  filter?: string
 }
 
 const VERIFY_PREFIX = 'verify:'
@@ -31,10 +30,7 @@ function findPackageJson(startDir: string): string | null {
   }
 }
 
-type PackageJson = {
-  scripts?: Record<string, string>
-  verify?: { filters?: Record<string, string> }
-}
+type PackageJson = { scripts?: Record<string, string> }
 
 /** Collect the project's `verify:*` npm scripts as parallelisable entries, nearest package.json wins. */
 export function resolveEntries(cwd: string = process.cwd()): VerifyEntry[] {
@@ -47,11 +43,10 @@ export function resolveEntries(cwd: string = process.cwd()): VerifyEntry[] {
     return []
   }
   const scripts = pkg.scripts ?? {}
-  const filters = pkg.verify?.filters ?? {}
   const dir = path.dirname(pkgPath)
   return Object.keys(scripts)
     .filter((name) => name.startsWith(VERIFY_PREFIX))
-    .map((name) => ({ name, command: `npm run ${name}`, cwd: dir, filter: filters[name] }))
+    .map((name) => ({ name, command: `npm run ${name}`, cwd: dir }))
 }
 
 /**

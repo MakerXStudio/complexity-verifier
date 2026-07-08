@@ -1,13 +1,10 @@
 import { configureMode, resolveMode } from '../shared/mode.ts'
 import { runCommand, setVerbose } from '../shared/spawn.ts'
-import { filterByChangedFiles } from './filterByChangedFiles.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { chatty, reportOutcomes } from './report.ts'
 import { resolveEntries, selectEntries, type VerifyEntry } from './resolveEntries.ts'
 
 export type OrchestrateOptions = {
-  /** When false (via --no-filter), run every verify:* script ignoring diff-based filters. */
-  filter?: boolean
   measure?: boolean
   verbose?: boolean
   check?: boolean
@@ -37,10 +34,9 @@ export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number
   }
 
   // Collapse verify:<name> / verify:<name>:fix pairs to the variant for the current mode.
-  const modeEntries = selectEntries(allEntries, resolveMode())
-  const entries = opts.filter === false ? modeEntries : filterByChangedFiles(modeEntries)
+  const entries = selectEntries(allEntries, resolveMode())
   if (entries.length === 0) {
-    console.log('No verify scripts matched changed files — skipping')
+    console.log('No verify:* scripts to run for this mode.')
     return 0
   }
 
