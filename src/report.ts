@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+
 import type { FileScore } from './analyze.ts'
 import { forEachFunction } from './functions.ts'
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'

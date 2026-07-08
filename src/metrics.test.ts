@@ -1,5 +1,6 @@
 import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
+
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'
 
 function firstFunction(code: string): ts.Node {

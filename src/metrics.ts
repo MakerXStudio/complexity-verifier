@@ -72,7 +72,7 @@ function classifyNode(n: ts.Node, operators: Map<string, number>, operands: Map<
   }
 }
 
-export interface HalsteadMetrics {
+export type HalsteadMetrics = {
   volume: number
   difficulty: number
   effort: number

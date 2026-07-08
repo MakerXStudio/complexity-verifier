@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+
 import { minimatch } from 'minimatch'
+
 import { forEachFunction } from './functions.ts'
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'
 
@@ -39,7 +41,7 @@ export function resolvePattern(pattern: string): string {
   return pattern.includes('*') || pattern.includes('/') ? pattern : `**/${pattern}`
 }
 
-export interface FileScore {
+export type FileScore = {
   file: string
   avg: number
   min: number
@@ -71,7 +73,7 @@ export function scoreFiles(files: readonly string[]): FileScore[] {
   return results
 }
 
-export interface AnalyzeOptions {
+export type AnalyzeOptions = {
   /** Glob pattern, directory, or file. Defaults to `{src,server,shared}/**\/*.ts`. */
   pattern?: string
   /** Extra ignore globs, appended to the default `**\/*test.ts*`. */
@@ -80,7 +82,7 @@ export interface AnalyzeOptions {
   threshold?: number
 }
 
-export interface AnalyzeResult {
+export type AnalyzeResult = {
   /** All scored files, sorted ascending by min MI. */
   results: FileScore[]
   /** Files below the threshold (empty when no threshold given). */
