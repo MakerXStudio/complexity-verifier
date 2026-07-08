@@ -1,0 +1,42 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import"],
+  "ignorePatterns": ["dist", "coverage", "node_modules"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-definitions": ["error", "type"],
+    "typescript/consistent-type-imports": ["error", { "fixStyle": "separate-type-imports", "prefer": "type-imports" }],
+    "typescript/dot-notation": "error",
+    "typescript/prefer-optional-chain": "error",
+    "no-console": "error",
+    "no-useless-computed-key": "error",
+    "prefer-template": "error",
+    "prefer-arrow-callback": "error",
+    "array-callback-return": "error",
+    "unicorn/prefer-number-properties": "error",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/no-useless-switch-case": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "import/newline-after-import": ["error", { "count": 1 }]
+  },
+  "overrides": [
+    {
+      // The CLI and its reporting surface legitimately write to stdout/stderr.
+      "files": ["src/cli.ts", "src/cli-core.ts", "src/report.ts"],
+      "rules": {
+        "no-console": "off"
+      }
+    },
+    {
+      // Non-null assertions are idiomatic in tests.
+      "files": ["**/*.test.ts"],
+      "rules": {
+        "typescript/no-non-null-assertion": "off"
+      }
+    }
+  ]
+}

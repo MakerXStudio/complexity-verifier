@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { parseArgs } from './cli-core.ts'
 
 describe('parseArgs', () => {

@@ -1,6 +1,7 @@
 // Function discovery ported from https://github.com/staff0rd/assist/tree/75a75899d7578769a433fb8058c96dd29410c254/src/commands/complexity
 import fs from 'node:fs'
 import path from 'node:path'
+
 import ts from 'typescript'
 
 const FUNCTION_TYPE_CHECKS: Array<(node: ts.Node) => boolean> = [
@@ -13,9 +14,9 @@ const FUNCTION_TYPE_CHECKS: Array<(node: ts.Node) => boolean> = [
   ts.isConstructorDeclaration,
 ]
 
-interface WithBody extends ts.Node {
+type WithBody = {
   body?: ts.Node
-}
+} & ts.Node
 
 function hasFunctionBody(node: ts.Node): boolean {
   if (!FUNCTION_TYPE_CHECKS.some((check) => check(node))) return false

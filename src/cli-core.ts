@@ -1,7 +1,7 @@
 import { analyzeComplexity, DEFAULT_IGNORE, DEFAULT_PATTERN, findSourceFiles, resolvePattern } from './index.ts'
 import { color, printFailure, printFileDetail, printMaintainabilityReport } from './report.ts'
 
-export interface CliArgs {
+export type CliArgs = {
   pattern?: string
   ignore: string[]
   threshold?: number
