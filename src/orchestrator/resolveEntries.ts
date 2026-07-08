@@ -32,21 +32,25 @@ function findPackageJson(startDir: string): string | null {
 
 type PackageJson = { scripts?: Record<string, string> }
 
+/** The nearest package.json's scripts + its directory, or null when none is found / it can't be parsed. */
+export function loadPackageScripts(cwd: string = process.cwd()): { scripts: Record<string, string>; dir: string } | null {
+  const pkgPath = findPackageJson(cwd)
+  if (!pkgPath) return null
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as PackageJson
+    return { scripts: pkg.scripts ?? {}, dir: path.dirname(pkgPath) }
+  } catch {
+    return null
+  }
+}
+
 /** Collect the project's `verify:*` npm scripts as parallelisable entries, nearest package.json wins. */
 export function resolveEntries(cwd: string = process.cwd()): VerifyEntry[] {
-  const pkgPath = findPackageJson(cwd)
-  if (!pkgPath) return []
-  let pkg: PackageJson
-  try {
-    pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as PackageJson
-  } catch {
-    return []
-  }
-  const scripts = pkg.scripts ?? {}
-  const dir = path.dirname(pkgPath)
-  return Object.keys(scripts)
+  const loaded = loadPackageScripts(cwd)
+  if (!loaded) return []
+  return Object.keys(loaded.scripts)
     .filter((name) => name.startsWith(VERIFY_PREFIX))
-    .map((name) => ({ name, command: `npm run ${name}`, cwd: dir }))
+    .map((name) => ({ name, command: `npm run ${name}`, cwd: loaded.dir }))
 }
 
 /**

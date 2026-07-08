@@ -2,13 +2,16 @@ import { configureMode, resolveMode } from '../shared/mode.ts'
 import { runCommand, setVerbose } from '../shared/spawn.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { chatty, reportOutcomes } from './report.ts'
-import { resolveEntries, selectEntries, type VerifyEntry } from './resolveEntries.ts'
+import { entryCheckName, resolveEntries, selectEntries, type VerifyEntry } from './resolveEntries.ts'
+import { resolveTestEntry, TEST_CHECK_NAME } from './tests.ts'
 
 export type OrchestrateOptions = {
   measure?: boolean
   verbose?: boolean
   check?: boolean
   fix?: boolean
+  /** When false, skip the automatic tests step (`--no-tests`). */
+  tests?: boolean
 }
 
 async function runEntry(entry: VerifyEntry): Promise<MeasureRecord> {
@@ -27,16 +30,13 @@ export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number
   // Propagate an explicit --check/--fix via VERIFY_MODE so it reaches spawned verify:* scripts too.
   configureMode(opts)
 
-  const allEntries = resolveEntries()
-  if (allEntries.length === 0) {
-    console.log('No verify:* scripts defined — nothing to run. Add verify:* scripts, or run `verifyx all` to run every built-in check.')
-    return 0
-  }
+  // Collapse verify:<name>/:fix pairs per mode; the tests step owns the `test` check, so it's dropped and re-added below.
+  const gate = selectEntries(resolveEntries(), resolveMode()).filter((entry) => entryCheckName(entry.name) !== TEST_CHECK_NAME)
+  const testEntry = resolveTestEntry({ noTests: opts.tests === false })
+  const entries = testEntry ? [...gate, testEntry] : gate
 
-  // Collapse verify:<name> / verify:<name>:fix pairs to the variant for the current mode.
-  const entries = selectEntries(allEntries, resolveMode())
   if (entries.length === 0) {
-    console.log('No verify:* scripts to run for this mode.')
+    console.log('No verify:* scripts defined — nothing to run. Add verify:* scripts, or run `verifyx all` to run every built-in check.')
     return 0
   }
 

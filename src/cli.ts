@@ -15,7 +15,7 @@ import { setVerbose } from './shared/spawn.ts'
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
 
-type RunOptions = { measure?: boolean; verbose?: boolean; check?: boolean; fix?: boolean }
+type RunOptions = { measure?: boolean; verbose?: boolean; check?: boolean; fix?: boolean; tests?: boolean }
 
 /** The options shared by the default run and `verifyx all`. */
 function withRunOptions(command: Command): Command {
@@ -24,6 +24,7 @@ function withRunOptions(command: Command): Command {
     .option('--verbose', 'stream all output instead of suppressing passing runs')
     .option('--check', 'check only — never auto-fix (the default under CI)')
     .option('--fix', 'auto-fix where possible (the default locally)')
+    .option('--no-tests', 'skip the automatic tests step (verify:test / test locally, test:ci on CI)')
 }
 
 const program = new Command()
@@ -44,7 +45,7 @@ withRunOptions(
 ).action(async (opts: RunOptions) => {
   setVerbose(!!opts.verbose)
   configureMode(opts)
-  process.exitCode = await runAll({ measure: opts.measure })
+  process.exitCode = await runAll({ measure: opts.measure, tests: opts.tests })
 })
 
 registerChecks(program)

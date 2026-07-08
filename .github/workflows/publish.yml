@@ -17,8 +17,9 @@ jobs:
     with:
       working-directory: .
       node-version: 24.x
-      # Runs the non-editing verifications (lint/format checks, complexity, comment-block, types).
-      lint-script: npm run verify
+      # Runs the non-editing verifications (lint/format checks, complexity, comments, types). Tests run
+      # separately via test-script, so --no-tests stops verify from running them a second time.
+      lint-script: npm run verify -- --no-tests
       audit-script: npm run audit
       test-script: npm run test:ci
       output-test-results: true

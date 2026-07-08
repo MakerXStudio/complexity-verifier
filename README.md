@@ -95,11 +95,22 @@ The same split works for any `verify:<name>` script, whether it overrides a buil
 }
 ```
 
+### Tests
+
+`verifyx` runs your test suite as part of a verify run, by convention, so you don't have to wire it in as a check:
+
+- **Locally** it runs your `verify:test` script if you have one, otherwise your standard `test` script. The run is buffered like any other check (silent on success, shown on failure), so it stays cheap in a loop; stream it with `--verbose`.
+- **On CI** (`CI` set) it runs only a `test:ci` script, if present. A plain `test` (or `verify:test`) never runs on CI, because CI usually needs a different invocation (emitting `junit.xml`, coverage, and so on). With no `test:ci`, verify runs no tests on CI; run them in a separate step.
+- **`--no-tests`** skips the step entirely, handy when CI already runs tests in a dedicated step, or under `verifyx all`.
+
+The test run is just another entry in the gate: it appears in `--measure` and fails the overall run if it fails.
+
 Flags on the bare `verifyx` command:
 
 - `--check` / `--fix`: force check-only or auto-fix (defaults: fix locally, check under CI).
 - `--measure`: print a status/duration summary table.
 - `--verbose`: stream all output instead of suppressing passing runs.
+- `--no-tests`: skip the automatic tests step.
 
 ## Built-in checks
 

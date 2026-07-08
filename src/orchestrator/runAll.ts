@@ -6,8 +6,9 @@ import { runCommand } from '../shared/spawn.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { chatty, reportOutcomes } from './report.ts'
 import { entryCheckName, resolveEntries, resolveOverride, selectEntries } from './resolveEntries.ts'
+import { resolveTestEntry, TEST_CHECK_NAME } from './tests.ts'
 
-export type RunAllOptions = { measure?: boolean }
+export type RunAllOptions = { measure?: boolean; tests?: boolean }
 
 // Run a native/external check in-process, buffering its console output so a passing check stays silent (flushed on failure).
 async function runQuietly(run: () => Promise<CheckResult>): Promise<CheckResult> {
@@ -38,14 +39,19 @@ export async function runAll(opts: RunAllOptions = {}): Promise<number> {
   const mode = resolveMode()
   const loud = chatty(opts.measure)
 
+  // Custom verify:* scripts that don't map to a built-in run too, minus the `test` check the tests step owns.
   const builtinNames = new Set(CHECKS.map((c) => c.name))
-  const customEntries = selectEntries(entries, mode).filter((entry) => !builtinNames.has(entryCheckName(entry.name)))
+  const customEntries = selectEntries(entries, mode).filter(
+    (entry) => !builtinNames.has(entryCheckName(entry.name)) && entryCheckName(entry.name) !== TEST_CHECK_NAME,
+  )
+  const testEntry = resolveTestEntry({ noTests: opts.tests === false })
 
   if (loud) {
     console.log(`Running all ${CHECKS.length} built-in verification(s)${customEntries.length ? ` + ${customEntries.length} custom` : ''}:`)
     for (const check of CHECKS)
       console.log(`  - ${check.name}${resolveOverride(entries, check.name, mode) ? color.dim(' (overridden)') : ''}`)
     for (const entry of customEntries) console.log(`  - ${entry.name}${color.dim(' (custom)')}`)
+    if (testEntry) console.log(`  - ${testEntry.name}${color.dim(' (tests)')}`)
     console.log()
   }
 
@@ -73,7 +79,7 @@ export async function runAll(opts: RunAllOptions = {}): Promise<number> {
     })
   }
 
-  for (const entry of customEntries) {
+  for (const entry of [...customEntries, ...(testEntry ? [testEntry] : [])]) {
     await record(entry.name, async () => (await runCommand(entry.command, { cwd: entry.cwd, quiet: !loud })) === 0)
   }
 
