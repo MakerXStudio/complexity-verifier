@@ -1,57 +1,49 @@
 ---
 name: prune-comments
-description: Remove low-value code comments across the current change. Use when asked to "prune comments", "clean up comments", or after the verify comments check flags narration, dense comments, or long comment blocks.
+description: Strip low-value comments (restatement, session narration, prose blocks, dense runs) from a change. Applies edits in-place, file by file. Use when asked to "prune comments", "clean up comments", "remove comment bloat", or after the verify comments check flags them. Apply-capable — it edits files, it is not a read-only review.
 ---
 
-Capable coding agents love to narrate their work in comments. This skill removes that noise
-from the current change while protecting the comments that genuinely earn their place.
+# prune-comments
+
+Remove comment bloat and keep only the comments that earn their place, following the criteria in the
+`comments-only-when-non-obvious` rule (`.claude/rules/` / `.agent-skills/rules/`). Edits are applied in-place.
 
 ## 1. Find the flagged comments
 
-Run the comments check over the branch diff (the binary is `verifyx`, since `verify` is a
-Windows builtin):
+Run the check to see what fails (the binary is `verifyx`). By default it judges the **current diff** — the
+comments this change introduced:
 
 ```
-npx verifyx comments --block-new-comments --pushback
+npx verifyx comments --pushback
 ```
 
-That lists every comment on a changed line. For a softer pass that only flags narration and
-dense comment runs (the defaults), drop `--block-new-comments`.
+Scope options (`verifyx comments` handles the git/diff scoping itself — you don't need to compute it):
 
-## 2. Delete or keep — the criteria
+- **Whole repo:** `npx verifyx comments --scope all --pushback` — audit and prune every comment in the codebase,
+  not just the diff.
+- **Every comment, not just heuristic hits:** add `--block-all` (with either scope) when the goal is to remove
+  _all_ comments in scope, keeping only `context:`/JSDoc.
 
-**Delete** a comment when any of these hold:
+## 2. Delete or keep
 
-- It narrates _what_ the next line does (`// increment the counter`, `// return the result`).
-- It narrates the editing session (`// let me add a handler`, `// as requested`, `// now we…`).
-- It restates a name already in the code (`// user service` above `class UserService`).
-- It is a commented-out block of old code.
-- Removing it loses nothing a competent reader couldn't recover from the code itself.
+Apply the `comments-only-when-non-obvious` rule to each flagged comment:
 
-**Keep** a comment when it explains _why_, not _what_:
+- **Delete** restatement, session narration (`let me…`, `as requested`, `this function does…`), prose blocks on
+  trivial code, LLM tells (em-dash / curly quotes), and duplicated explanation. When in doubt, delete.
+- **Keep** only a non-obvious _why_: a workaround, an external constraint, or a deliberate non-obvious deviation.
 
-- A non-obvious constraint, workaround, or business rule (`// Stripe rejects amounts under 50c`).
-- A deliberate deviation a reader would otherwise "fix" and break.
-- A link to an issue/spec that explains a surprising choice.
+Prefer fixing the code over keeping the comment: a better name, a smaller function, or a narrower type often
+removes the need for the comment entirely.
 
-If a kept comment is genuinely durable context the code cannot express, prefix its first line
-with `context:` so the check leaves it alone:
+If a kept comment is genuinely durable context the code cannot express, prefix its first line with `context:`.
+Do **not** mark low-value comments `context:` to slip them past the gate — `context:` pages a human to approve it.
 
-```ts
-// context: retries must stay at 3 — the upstream gateway drops the connection after the 4th.
-```
+## 3. Apply and re-run
 
-Machine directives (`eslint-disable`, `@ts-expect-error`, …) and JSDoc (`/** … */`) are
-always allowed and never need pruning.
+Edit with the Edit tool — one edit per change site, not a whole-file rewrite. Then re-run the same
+`verifyx comments` command and repeat until it passes. Never silence the check or widen its ignore globs.
 
-## 3. Prefer fixing the code over keeping the comment
+## Output
 
-When a comment exists because the code is unclear, the better fix is usually to rename a
-variable, extract a well-named function, or simplify — then delete the comment. Reach for
-`context:` only when the code truly cannot carry the meaning.
-
-## 4. Re-run until clean
-
-After editing, run the check again and repeat until it passes. Do not silence the check,
-widen its ignore globs, or mark low-value comments `context:` to slip them past the gate —
-`context:` pages a human to approve the comment.
+One line per file: `pruned: <file> — <n> removed`, `clean: <file>`, or `needs manual review: <file>`.
+No preamble, no closing remarks.
