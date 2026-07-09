@@ -28,17 +28,31 @@ export function registerChecks(program: Command): void {
 
   program
     .command('comments')
-    .description('Flag long comment blocks (JSDoc / context: exempt); --block-new-comments also fails comments on changed lines')
+    .description(
+      'Flag long comment blocks + narration/density on changed lines (JSDoc / context: exempt); --block-new-comments fails all changed-line comments',
+    )
     .argument('[pattern]', 'glob, directory, or file to scan')
     .option('--max-lines <n>', 'maximum comment-block length', Number)
     .option('--pushback', 'add AI back-pressure framing to the failure message')
     .option('--warn', 'report without failing the run')
     .option('--block-new-comments', 'also fail on any comment on a line changed against HEAD')
+    .option('--no-narration', 'do not flag session-narration comments on changed lines')
+    .option('--comment-density <pct>', 'changed-line comment-density ratio (0–1) that fails a file; 0 disables', Number)
+    .option('--min-added-lines <n>', 'minimum added lines before density applies', Number)
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
     .action(
       (
         pattern: string | undefined,
-        opts: { maxLines?: number; pushback?: boolean; warn?: boolean; blockNewComments?: boolean; ignore: string[] },
+        opts: {
+          maxLines?: number
+          pushback?: boolean
+          warn?: boolean
+          blockNewComments?: boolean
+          narration?: boolean
+          commentDensity?: number
+          minAddedLines?: number
+          ignore: string[]
+        },
       ) => {
         finish(
           runComments({
@@ -47,6 +61,11 @@ export function registerChecks(program: Command): void {
             pushback: opts.pushback,
             warn: opts.warn,
             blockNewComments: opts.blockNewComments,
+            // context: commander defaults --no-narration's value to true; forward it only when explicitly
+            // disabled so verify.config.json's `narration` stays authoritative when the flag is absent.
+            narration: opts.narration === false ? false : undefined,
+            density: opts.commentDensity,
+            minAddedLines: opts.minAddedLines,
             ignore: opts.ignore,
           }).ok,
         )

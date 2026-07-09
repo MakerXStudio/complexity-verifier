@@ -1,71 +1,45 @@
-import fs from 'node:fs'
-
-import { minimatch } from 'minimatch'
-
 import { DEFAULT_IGNORE, DEFAULT_PATTERN, findSourceFiles, resolvePattern } from '../analyze.ts'
 import { findLongCommentBlocks } from '../comments.ts'
-import { printCommentBlockReport } from '../report.ts'
+import { printCommentBlockReport, printCommentDensityReport, printNarrationReport } from '../report.ts'
 import { color } from '../shared/color.ts'
 import { scanFileComments } from '../shared/comment-scan.ts'
 import { loadVerifyConfig } from '../shared/config.ts'
 import { parseDiffAddedLines } from '../shared/diff.ts'
 import { gitDiffAgainstBase } from '../shared/git.ts'
+import { commentSpan, isDiffExempt, type NewComment, shouldScan, toSingleLine } from './comment-common.ts'
+import { type FileCommentCounts, findCommentDensity, findNarrationComments } from './comment-heuristics.ts'
 import type { CheckResult } from './types.ts'
 
 const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
+const DEFAULT_DENSITY_THRESHOLD = 0.3
+const DEFAULT_MIN_ADDED_LINES = 10
 
-const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.cts', '.mts', '.js', '.jsx', '.mjs', '.cjs', '.yml', '.yaml']
-
-// context: machine directives steer tooling, not humans, so a changed line carrying one is never a "comment"
-// worth removing; `context:` is this project's durable-context escape hatch and is likewise exempt.
-const MACHINE_DIRECTIVES = [
-  'oxlint-disable',
-  'oxlint-enable',
-  '@ts-expect-error',
-  '@ts-ignore',
-  '@ts-nocheck',
-  'eslint-disable',
-  'eslint-enable',
-  'prettier-ignore',
-  'istanbul ignore',
-  'v8 ignore',
-  'c8 ignore',
-  '@vitest-environment',
-]
-
-function isCommentExempt(text: string): boolean {
-  const lower = text.toLowerCase()
-  if (MACHINE_DIRECTIVES.some((d) => lower.includes(d))) return true
-  const stripped = text.replace(/^\s*(?:\/\/+|\/\*+|\*|#)\s*/, '')
-  return stripped.toLowerCase().startsWith('context:')
+type ChangedComments = {
+  /** Non-exempt comments whose first line sits on a changed line (block-new-comments + narration). */
+  comments: NewComment[]
+  /** Per changed file: added-line count and how many of them fall inside a non-exempt comment (density). */
+  perFile: Map<string, FileCommentCounts>
 }
 
-function shouldScan(file: string, ignoreGlobs: readonly string[]): boolean {
-  if (!SCANNED_EXTENSIONS.some((ext) => file.endsWith(ext))) return false
-  if (ignoreGlobs.some((glob) => minimatch(file, glob))) return false
-  return fs.existsSync(file)
-}
-
-function toSingleLine(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-type NewComment = { file: string; line: number; text: string }
-
-// context: the --block-new-comments behaviour — flag any comment sitting on a changed line (vs HEAD, or the CI base).
-function findCommentsOnChangedLines(ignoreGlobs: readonly string[]): NewComment[] {
+// context: one pass over the diff feeds every diff-based gate (block-new-comments, narration, density) so we
+// scan each changed file's comments only once.
+function collectChangedLineComments(ignoreGlobs: readonly string[]): ChangedComments {
   const added = parseDiffAddedLines(gitDiffAgainstBase())
-  const findings: NewComment[] = []
+  const comments: NewComment[] = []
+  const perFile = new Map<string, FileCommentCounts>()
   for (const [file, lines] of added) {
     if (!shouldScan(file, ignoreGlobs)) continue
+    let commentLines = 0
     for (const comment of scanFileComments(file)) {
-      if (!lines.has(comment.line)) continue
-      if (isCommentExempt(comment.text)) continue
-      findings.push({ file, line: comment.line, text: toSingleLine(comment.text) })
+      if (isDiffExempt(comment.text)) continue
+      const span = commentSpan(comment.text)
+      for (let l = comment.line; l < comment.line + span; l++) if (lines.has(l)) commentLines++
+      if (lines.has(comment.line)) comments.push({ file, line: comment.line, text: toSingleLine(comment.text) })
     }
+    perFile.set(file, { added: lines.size, commentLines })
   }
-  findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
-  return findings
+  comments.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
+  return { comments, perFile }
 }
 
 function reportCommentsOnChangedLines(findings: readonly NewComment[]): void {
@@ -83,13 +57,72 @@ export type CommentsOptions = {
   maxLines?: number
   pushback?: boolean
   warn?: boolean
-  /** Also fail on any comment on a line changed against HEAD (machine directives / context: exempt). */
+  /** Also fail on any comment on a line changed against the diff base (machine directives / context: exempt). */
   blockNewComments?: boolean
+  /** Flag session-narration comments on changed lines. Default true. */
+  narration?: boolean
+  /** Fail files whose changed-line comment share reaches this ratio (0–1). `false`/`0` disables. Default 0.3. */
+  density?: number | false
+  /** Minimum added lines before density applies. Default 10. */
+  minAddedLines?: number
+}
+
+function resolveDensity(opt: number | false | undefined, cfg: number | false | undefined): number {
+  const value = opt ?? cfg ?? DEFAULT_DENSITY_THRESHOLD
+  return value === false ? 0 : value
+}
+
+function runChangedLineGates(opts: CommentsOptions): boolean {
+  const cfg = loadVerifyConfig().comments ?? {}
+  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (cfg.ignore ?? [])
+  const narrationOn = !opts.blockNewComments && (opts.narration ?? cfg.narration ?? true)
+  const densityThreshold = opts.blockNewComments ? 0 : resolveDensity(opts.density, cfg.density)
+  const minAddedLines = opts.minAddedLines ?? cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES
+
+  if (!opts.blockNewComments && !narrationOn && densityThreshold === 0) return true
+
+  const { comments, perFile } = collectChangedLineComments(ignoreGlobs)
+  let ok = true
+
+  // context: --block-new-comments is the strictest gate (every new comment fails), so it subsumes the narration
+  // and density heuristics; when it's on we run it alone.
+  if (opts.blockNewComments) {
+    if (comments.length === 0) {
+      console.log(color.green('No comments on changed lines.'))
+    } else {
+      reportCommentsOnChangedLines(comments)
+      ok = false
+    }
+    return ok
+  }
+
+  if (narrationOn) {
+    const narration = findNarrationComments(comments)
+    if (narration.length === 0) {
+      console.log(color.green('No narration comments on changed lines.'))
+    } else {
+      printNarrationReport(narration, { pushback: !!opts.pushback })
+      ok = false
+    }
+  }
+
+  if (densityThreshold > 0) {
+    const dense = findCommentDensity(perFile, { threshold: densityThreshold, minAddedLines })
+    if (dense.length === 0) {
+      console.log(color.green('Comment density within threshold.'))
+    } else {
+      printCommentDensityReport(dense, { threshold: densityThreshold, pushback: !!opts.pushback })
+      ok = false
+    }
+  }
+
+  return ok
 }
 
 /**
- * Native check: flag comment blocks longer than `maxLines` (JSDoc and `context:`-prefixed blocks exempt).
- * With `blockNewComments`, additionally fail on any comment on a line changed against HEAD.
+ * Native check: flag comment blocks longer than `maxLines` (JSDoc and `context:`-prefixed blocks exempt), plus
+ * diff-scoped heuristics on changed lines — session narration and comment density (both on by default). With
+ * `blockNewComments`, instead fail on any comment on a changed line (the strictest gate).
  */
 export function runComments(opts: CommentsOptions = {}): CheckResult {
   const maxLines = opts.maxLines ?? DEFAULT_MAX_COMMENT_BLOCK_LINES
@@ -105,17 +138,7 @@ export function runComments(opts: CommentsOptions = {}): CheckResult {
     blocksOk = !!opts.warn
   }
 
-  let changedLinesOk = true
-  if (opts.blockNewComments) {
-    const ignoreGlobs = opts.ignore?.length ? opts.ignore : (loadVerifyConfig().comments?.ignore ?? [])
-    const findings = findCommentsOnChangedLines(ignoreGlobs)
-    if (findings.length === 0) {
-      console.log(color.green('No comments on changed lines.'))
-    } else {
-      reportCommentsOnChangedLines(findings)
-      changedLinesOk = false
-    }
-  }
+  const changedLinesOk = runChangedLineGates(opts)
 
   return { name: 'comments', ok: blocksOk && changedLinesOk }
 }

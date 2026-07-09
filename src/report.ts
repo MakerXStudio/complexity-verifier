@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 
 import type { FileScore } from './analyze.ts'
+import type { NewComment } from './checks/comment-common.ts'
+import type { DensityViolation } from './checks/comment-heuristics.ts'
 import type { CommentBlockViolation } from './comments.ts'
 import { forEachFunction } from './functions.ts'
 import { calculateCyclomaticComplexity, calculateHalstead, calculateMaintainabilityIndex, countSloc } from './metrics.ts'
@@ -52,6 +54,27 @@ export function printCommentBlockReport(
   } else {
     console.error(color.red(message))
   }
+}
+
+/** Report session-narration comments found on changed lines. `pushback` adds AI back-pressure framing. */
+export function printNarrationReport(findings: readonly NewComment[], opts: { pushback: boolean }): void {
+  const list = findings.map((c) => `  ${c.file}:${c.line} → ${c.text}`).join('\n')
+  console.error(
+    color.red(
+      `\nFail: ${findings.length} narration comment(s) on changed lines.\n${list}\n\n${color.bold('These read as session narration — thinking out loud or restating *what* the next line does.')} They add no durable value and drift as the code changes. Delete them; let the code speak. If a line is genuinely durable context the code cannot express, prefix it with \`context:\`.${opts.pushback ? PUSHBACK : ''}`,
+    ),
+  )
+}
+
+/** Report files whose changed-line comment share exceeds the density threshold. */
+export function printCommentDensityReport(violations: readonly DensityViolation[], opts: { threshold: number; pushback: boolean }): void {
+  const pct = (n: number): string => `${Math.round(n * 100)}%`
+  const list = violations.map((v) => `  ${v.file} → ${pct(v.ratio)} (${v.commentLines}/${v.added} added lines)`).join('\n')
+  console.error(
+    color.red(
+      `\nFail: ${violations.length} file(s) over the ${pct(opts.threshold)} comment-density threshold on changed lines.\n${list}\n\n${color.bold('Too much of this change is comments.')} Dense comment runs usually narrate *what* the code does. Prefer self-documenting code: better names, smaller functions. Keep only comments that explain *why*; prefix genuinely durable context with \`context:\`. JSDoc (\`/** … */\`) is always allowed.${opts.pushback ? PUSHBACK : ''}`,
+    ),
+  )
 }
 
 function printSloc(file: string, content: string): void {

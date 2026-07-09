@@ -64,6 +64,13 @@ function scanFile(file: string, content: string, maxLines: number, out: CommentB
   }
 }
 
+/** Flag comment blocks longer than `maxLines` in a single file's `content` (see {@link findLongCommentBlocks}). */
+export function findLongCommentBlocksInContent(file: string, content: string, maxLines: number): CommentBlockViolation[] {
+  const out: CommentBlockViolation[] = []
+  scanFile(file, content, maxLines, out)
+  return out
+}
+
 /**
  * Flag comment blocks longer than `maxLines`. A block is a run of consecutive whole-line `//`
  * comments or a `/* ... *\/` block comment. JSDoc (`/**`) blocks and blocks whose first line

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { Command } from 'commander'
 
 import { registerChecks } from './commands/registerChecks.ts'
+import { registerCommentsHook } from './commands/registerCommentsHook.ts'
 import { registerEject } from './commands/registerEject.ts'
 import { registerInit } from './commands/registerInit.ts'
 import { registerList } from './commands/registerList.ts'
@@ -50,6 +51,7 @@ withRunOptions(
 })
 
 registerChecks(program)
+registerCommentsHook(program)
 registerList(program)
 registerInit(program)
 registerUpgradeDocs(program)
