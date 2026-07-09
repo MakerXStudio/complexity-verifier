@@ -18,6 +18,6 @@ jobs:
       build-script: npm run build
       # Runs the non-editing verifications (lint/format checks, complexity, comments, types). Tests run
       # separately via test-script, so --no-tests stops verify from running them a second time.
-      lint-script: npm run verify -- --no-tests
+      lint-script: npm run verify -- --no-tests --verbose
       test-script: npm run test:ci
       audit-script: npm run audit
