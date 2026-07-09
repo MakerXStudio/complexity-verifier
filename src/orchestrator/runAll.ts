@@ -1,5 +1,5 @@
 import { CHECKS } from '../checks/registry.ts'
-import { color } from '../shared/color.ts'
+import { color, paintRed } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { installConsoleCapture, runCaptured } from '../shared/output.ts'
 import { runCommand } from '../shared/spawn.ts'
@@ -90,6 +90,15 @@ export async function runAll(opts: RunAllOptions = {}): Promise<number> {
     if (!loud && run.ok) continue
     if (loud) console.log(color.heading(`▶ ${run.name}`))
     if (run.output) process.stdout.write(run.output)
+  }
+
+  // Under --verbose every check is printed, so a single failure gets buried mid-list; re-print the
+  // failing checks' output at the end in red so the step that actually failed stands out.
+  if (loud) {
+    for (const run of runs.filter((r) => !r.ok)) {
+      console.log(color.red(color.heading(`\n▶ ${run.name} (failed)`)))
+      if (run.output) process.stdout.write(paintRed(run.output))
+    }
   }
 
   if (opts.measure) {

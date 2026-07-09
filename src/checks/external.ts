@@ -39,6 +39,8 @@ export type ExternalCheckSpec = {
   docs?: string
   /** Extra guard beyond bin presence (e.g. require a tsconfig). */
   canRun?: () => boolean
+  /** Rewrite the tool's captured output before it is printed, e.g. to strip a tool's own hardcoded colouring. */
+  transformOutput?: (output: string) => string
   /**
    * Default trailing args scaffolded after `--` (e.g. skott's `src/*.ts` target), surfaced in the `verify:<name>`
    * script so a consumer can see and tweak them. Not baked into `runDefault`; only the scaffolded script carries them.
@@ -90,7 +92,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       }
       const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
-      const code = await runCommand(command, { env: envWithLocalBin(), quiet: true })
+      const code = await runCommand(command, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
       // Only on failure — passing runs stay silent to save tokens.
       if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
       return { name: spec.name, ok: code === 0 }

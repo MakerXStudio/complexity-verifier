@@ -8,3 +8,16 @@ export const color = {
   bold: (s: string | number) => `\x1b[1m${s}\x1b[22m`,
   heading: (s: string | number) => `\x1b[1m\x1b[4m${s}\x1b[24m\x1b[22m`,
 }
+
+/**
+ * Paint a whole block red, re-asserting red after any foreground-colour reset the text already contains
+ * (e.g. a tool's own ANSI codes) so the highlight survives to the end instead of being cancelled partway.
+ */
+export function paintRed(text: string): string {
+  return `\x1b[31m${text.replaceAll('\x1b[39m', '\x1b[31m')}\x1b[39m`
+}
+
+/** Drop red-foreground codes from text so a tool's hardcoded red renders in the terminal's default colour. */
+export function withoutRed(text: string): string {
+  return text.replaceAll('\x1b[31m', '')
+}

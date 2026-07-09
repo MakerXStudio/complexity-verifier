@@ -12,5 +12,5 @@
   "bracketSameLine": false,
   "bracketSpacing": true,
   "sortImports": true,
-  "ignorePatterns": ["**/dist/**", "**/coverage/**"]
+  "ignorePatterns": ["**/dist/**", "**/coverage/**", "**/CHANGELOG.md"]
 }
