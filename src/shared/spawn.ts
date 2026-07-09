@@ -22,6 +22,8 @@ export type RunCommandOptions = {
   cwd?: string
   env?: Record<string, string>
   quiet?: boolean
+  /** Rewrite the command's buffered output before it is emitted (only applies when output is suppressed/buffered). */
+  transform?: (output: string) => string
 }
 
 /**
@@ -45,7 +47,10 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
     child.on('close', (code) => {
       const exitCode = code ?? 1
       // When capturing (parallel `verifyx all`), hand all output to the buffer; otherwise flush only on failure.
-      if (suppress && chunks.length > 0 && (isCapturing() || exitCode !== 0)) emit(Buffer.concat(chunks).toString())
+      if (suppress && chunks.length > 0 && (isCapturing() || exitCode !== 0)) {
+        const out = Buffer.concat(chunks).toString()
+        emit(opts.transform ? opts.transform(out) : out)
+      }
       resolve(exitCode)
     })
     child.on('error', () => resolve(127))

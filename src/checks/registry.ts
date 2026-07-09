@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { withoutRed } from '../shared/color.ts'
 import { runComments } from './comments.ts'
 import { runComplexity } from './complexity.ts'
 import { defineExternalCheck } from './external.ts'
@@ -85,6 +86,9 @@ export const CHECKS: Check[] = [
     bin: 'jscpd',
     checkCommand: 'jscpd --format typescript,tsx --exit-code 1 --ignore "**/*.test.*" -r consoleFull src',
     devDeps: ['jscpd'],
+    // jscpd hardcodes red header cells in its stats table (even on a clean run) — reads like a failure. It ignores
+    // NO_COLOR/FORCE_COLOR, so strip the red foreground from its output; the table renders in the default colour.
+    transformOutput: withoutRed,
     docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
   }),
 ]
