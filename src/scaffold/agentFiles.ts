@@ -29,14 +29,17 @@ function readTemplate(relativePath: string): string {
 export function writeAgentFiles(cwd: string, targets: readonly AgentTarget[]): ManagedFileResult[] {
   const results: ManagedFileResult[] = []
   const skill = readTemplate('skills/verify/SKILL.md')
+  const pruneSkill = readTemplate('skills/prune-comments/SKILL.md')
   const guidance = readTemplate('verify-guidance.md')
 
   if (targets.includes('claude')) {
     writeManaged(path.join(cwd, '.claude', 'skills', 'verify', 'SKILL.md'), skill, results)
+    writeManaged(path.join(cwd, '.claude', 'skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
     ensurePointer(path.join(cwd, 'CLAUDE.md'), guidance, POINTER_MARKER, results)
   }
   if (targets.includes('agents')) {
     writeManaged(path.join(cwd, '.agent-skills', 'verify', 'SKILL.md'), skill, results)
+    writeManaged(path.join(cwd, '.agent-skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
     ensurePointer(path.join(cwd, 'AGENTS.md'), guidance, POINTER_MARKER, results)
   }
 

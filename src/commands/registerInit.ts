@@ -34,9 +34,10 @@ type InitCliOptions = {
   select: string[]
   claude?: boolean
   agents?: boolean
+  commentHook?: boolean
 }
 
-type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean }
+type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean; commentHook: boolean }
 
 async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
   const nonInteractive = !!opts.yes || !process.stdin.isTTY
@@ -48,6 +49,7 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
       checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
       targets,
       defaultsOnly: !!opts.defaultsOnly,
+      commentHook: opts.commentHook !== false,
     }
   }
 
@@ -70,7 +72,15 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
     { name: 'claude', message: 'Claude (.claude/skills + CLAUDE.md)', enabled: true },
     { name: 'agents', message: 'Other agents (.agent-skills + AGENTS.md)', enabled: false },
   ])
-  return { checks, targets, defaultsOnly }
+
+  // The edit-time hook is Claude-specific; only offer it when Claude is a target.
+  const commentHook = targets.includes('claude')
+    ? (await ask<string>('select', 'Enable the edit-time comment hook (Claude PostToolUse)?', [
+        { name: 'yes', message: 'Yes — flag low-value comments the moment a file is edited', enabled: true },
+        { name: 'no', message: 'No — rely on the verify/CI comments check only' },
+      ])) === 'yes'
+    : false
+  return { checks, targets, defaultsOnly, commentHook }
 }
 
 function report(result: InitResult, defaultsOnly: boolean): void {
@@ -114,11 +124,12 @@ export function registerInit(program: Command): void {
     .option('--select <name>', 'preselect a check by name (repeatable, non-interactive)', collect, [])
     .option('--no-claude', 'do not write .claude/ files (non-interactive)')
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
+    .option('--no-comment-hook', 'do not register the edit-time comment PostToolUse hook')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
-      const { checks, targets, defaultsOnly } = await resolveSelections(opts)
+      const { checks, targets, defaultsOnly, commentHook } = await resolveSelections(opts)
 
-      const result = applyInit({ cwd, checks, targets, defaultsOnly })
+      const result = applyInit({ cwd, checks, targets, defaultsOnly, commentHook })
       report(result, defaultsOnly)
 
       if (result.devDeps.length > 0) {

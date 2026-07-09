@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getCheck } from '../checks/registry.ts'
 import type { Check } from '../checks/types.ts'
 import { type AgentTarget, writeAgentFiles } from './agentFiles.ts'
+import { ensureClaudeHook } from './claudeSettings.ts'
 import { ensureKnipIgnores } from './knipConfig.ts'
 import { addVerifyScripts } from './packageScripts.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
@@ -14,6 +15,8 @@ export type InitOptions = {
   targets: readonly AgentTarget[]
   /** When true, do not write `verify:*` scripts — rely on `verify`'s built-in defaults. */
   defaultsOnly: boolean
+  /** Register the edit-time comment gate as a Claude PostToolUse hook (claude target only). Default off. */
+  commentHook?: boolean
 }
 
 export type InitResult = {
@@ -39,6 +42,9 @@ export function applyInit(opts: InitOptions): InitResult {
   const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts, opts.defaultsOnly ? 'verifyx all' : 'verifyx')
 
   const agentFiles = writeAgentFiles(opts.cwd, opts.targets)
+
+  // The PostToolUse hook is Claude-specific; other agents have no universal edit-time equivalent.
+  if (opts.commentHook && opts.targets.includes('claude')) ensureClaudeHook(opts.cwd, agentFiles)
 
   // context: with unused-code selected, teach knip to ignore the other external tools verifyx runs at runtime.
   if (opts.checks.includes('unused-code')) {
