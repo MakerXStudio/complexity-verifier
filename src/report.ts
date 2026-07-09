@@ -38,8 +38,12 @@ export function printFailure(failing: readonly FileScore[], threshold: number): 
   )
 }
 
-const PUSHBACK =
+export const PUSHBACK =
   '\n\n⚠️  THIS IS YOUR LAST CHANCE TO RECONSIDER BEFORE INVOLVING A HUMAN. Adding `context:` pages a real person to approve this comment. DO NOT WASTE THEIR TIME. You had BETTER BE RIGHT that this comment is genuinely necessary — that it explains *why*, not *what*, and that the code cannot simply be made self-explanatory. If in doubt, delete the comment.'
+
+/** Where the gate looked, for report wording. */
+export type CommentScope = 'diff' | 'all'
+const where = (scope: CommentScope): string => (scope === 'all' ? 'in the codebase' : 'on changed lines')
 
 /** Report comment blocks longer than the configured maximum. `warn` prints without failing; `pushback` adds AI back-pressure framing. */
 export function printCommentBlockReport(
@@ -56,23 +60,37 @@ export function printCommentBlockReport(
   }
 }
 
-/** Report session-narration comments found on changed lines. `pushback` adds AI back-pressure framing. */
-export function printNarrationReport(findings: readonly NewComment[], opts: { pushback: boolean }): void {
+/** Report every non-exempt comment in scope (the `--block-all` gate). `pushback` adds AI back-pressure framing. */
+export function printBlockAllReport(findings: readonly NewComment[], opts: { scope: CommentScope; pushback: boolean }): void {
   const list = findings.map((c) => `  ${c.file}:${c.line} → ${c.text}`).join('\n')
   console.error(
     color.red(
-      `\nFail: ${findings.length} narration comment(s) on changed lines.\n${list}\n\n${color.bold('These read as session narration — thinking out loud or restating *what* the next line does.')} They add no durable value and drift as the code changes. Delete them; let the code speak. If a line is genuinely durable context the code cannot express, prefix it with \`context:\`.${opts.pushback ? PUSHBACK : ''}`,
+      `\nFail: ${findings.length} comment(s) ${where(opts.scope)}.\n${list}\n\nWith --block-all, every comment ${where(opts.scope)} fails this gate. Remove them and let the code document itself. Machine directives and \`context:\` comments are exempt.${opts.pushback ? PUSHBACK : ''}`,
     ),
   )
 }
 
-/** Report files whose changed-line comment share exceeds the density threshold. */
-export function printCommentDensityReport(violations: readonly DensityViolation[], opts: { threshold: number; pushback: boolean }): void {
-  const pct = (n: number): string => `${Math.round(n * 100)}%`
-  const list = violations.map((v) => `  ${v.file} → ${pct(v.ratio)} (${v.commentLines}/${v.added} added lines)`).join('\n')
+/** Report session-narration comments found in scope. `pushback` adds AI back-pressure framing. */
+export function printNarrationReport(findings: readonly NewComment[], opts: { scope: CommentScope; pushback: boolean }): void {
+  const list = findings.map((c) => `  ${c.file}:${c.line} → ${c.text}`).join('\n')
   console.error(
     color.red(
-      `\nFail: ${violations.length} file(s) over the ${pct(opts.threshold)} comment-density threshold on changed lines.\n${list}\n\n${color.bold('Too much of this change is comments.')} Dense comment runs usually narrate *what* the code does. Prefer self-documenting code: better names, smaller functions. Keep only comments that explain *why*; prefix genuinely durable context with \`context:\`. JSDoc (\`/** … */\`) is always allowed.${opts.pushback ? PUSHBACK : ''}`,
+      `\nFail: ${findings.length} narration comment(s) ${where(opts.scope)}.\n${list}\n\n${color.bold('These read as session narration — thinking out loud or restating *what* the next line does.')} They add no durable value and drift as the code changes. Delete them; let the code speak. If a line is genuinely durable context the code cannot express, prefix it with \`context:\`.${opts.pushback ? PUSHBACK : ''}`,
+    ),
+  )
+}
+
+/** Report files whose comment share in scope exceeds the density threshold. */
+export function printCommentDensityReport(
+  violations: readonly DensityViolation[],
+  opts: { threshold: number; scope: CommentScope; pushback: boolean },
+): void {
+  const pct = (n: number): string => `${Math.round(n * 100)}%`
+  const unit = opts.scope === 'all' ? 'lines' : 'added lines'
+  const list = violations.map((v) => `  ${v.file} → ${pct(v.ratio)} (${v.commentLines}/${v.added} ${unit})`).join('\n')
+  console.error(
+    color.red(
+      `\nFail: ${violations.length} file(s) over the ${pct(opts.threshold)} comment-density threshold ${where(opts.scope)}.\n${list}\n\n${color.bold('Too much of this is comments.')} Dense comment runs usually narrate *what* the code does. Prefer self-documenting code: better names, smaller functions. Keep only comments that explain *why*; prefix genuinely durable context with \`context:\`. JSDoc (\`/** … */\`) is always allowed.${opts.pushback ? PUSHBACK : ''}`,
     ),
   )
 }

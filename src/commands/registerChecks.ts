@@ -29,16 +29,18 @@ export function registerChecks(program: Command): void {
   program
     .command('comments')
     .description(
-      'Flag long comment blocks + narration/density on changed lines (JSDoc / context: exempt); --block-new-comments fails all changed-line comments',
+      'Flag low-value comments: long blocks + narration/density (JSDoc / context: exempt). --scope diff|all sets whether it judges changed lines or the whole codebase; --block-all fails every comment in scope',
     )
-    .argument('[pattern]', 'glob, directory, or file to scan')
+    .argument('[pattern]', 'glob, directory, or file to scan (used by --scope all)')
     .option('--max-lines <n>', 'maximum comment-block length', Number)
     .option('--pushback', 'add AI back-pressure framing to the failure message')
     .option('--warn', 'report without failing the run')
-    .option('--block-new-comments', 'also fail on any comment on a line changed against HEAD')
-    .option('--no-narration', 'do not flag session-narration comments on changed lines')
-    .option('--comment-density <pct>', 'changed-line comment-density ratio (0–1) that fails a file; 0 disables', Number)
-    .option('--min-added-lines <n>', 'minimum added lines before density applies', Number)
+    .option('--scope <scope>', 'which comments to judge: diff (changed lines) or all (whole codebase)')
+    .option('--block-all', 'fail every non-exempt comment in scope, not just heuristic hits')
+    .option('--block-new-comments', 'alias for --scope diff --block-all')
+    .option('--no-narration', 'do not flag session-narration comments')
+    .option('--comment-density <pct>', 'comment-density ratio (0–1) that fails a file; 0 disables', Number)
+    .option('--min-added-lines <n>', 'minimum lines in scope before density applies', Number)
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
     .action(
       (
@@ -47,6 +49,8 @@ export function registerChecks(program: Command): void {
           maxLines?: number
           pushback?: boolean
           warn?: boolean
+          scope?: string
+          blockAll?: boolean
           blockNewComments?: boolean
           narration?: boolean
           commentDensity?: number
@@ -60,6 +64,8 @@ export function registerChecks(program: Command): void {
             maxLines: opts.maxLines,
             pushback: opts.pushback,
             warn: opts.warn,
+            scope: opts.scope === 'all' ? 'all' : opts.scope === 'diff' ? 'diff' : undefined,
+            blockAll: opts.blockAll,
             blockNewComments: opts.blockNewComments,
             // context: commander defaults --no-narration's value to true; forward it only when explicitly
             // disabled so verify.config.json's `narration` stays authoritative when the flag is absent.

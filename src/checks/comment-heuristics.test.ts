@@ -29,25 +29,37 @@ describe('findNarrationComments', () => {
     const exempt = [comment('// context: let me keep this durable note'), comment('// eslint-disable-next-line -- let me disable')]
     expect(findNarrationComments(exempt)).toEqual([])
   })
+
+  it('flags LLM punctuation tells (em-dash, curly quotes)', () => {
+    const tells = [comment('// wraps the call — then retries'), comment('// uses the “fast” path')]
+    expect(findNarrationComments(tells)).toHaveLength(2)
+  })
 })
 
 describe('findCommentDensity', () => {
   const opts = { threshold: 0.3, minAddedLines: 10 }
+  const counts = (
+    added: number,
+    commentLines: number,
+    removedComments = 0,
+  ): Map<string, { added: number; commentLines: number; removedComments: number }> =>
+    new Map([['a.ts', { added, commentLines, removedComments }]])
 
   it('flags a file over the density threshold', () => {
-    const perFile = new Map([['a.ts', { added: 10, commentLines: 4 }]])
-    const [v] = findCommentDensity(perFile, opts)
+    const [v] = findCommentDensity(counts(10, 4), opts)
     expect(v).toMatchObject({ file: 'a.ts', added: 10, commentLines: 4 })
     expect(v?.ratio).toBeCloseTo(0.4)
   })
 
   it('ignores tiny diffs below minAddedLines', () => {
-    const perFile = new Map([['a.ts', { added: 9, commentLines: 9 }]])
-    expect(findCommentDensity(perFile, opts)).toEqual([])
+    expect(findCommentDensity(counts(9, 9), opts)).toEqual([])
   })
 
   it('passes a file under the threshold', () => {
-    const perFile = new Map([['a.ts', { added: 20, commentLines: 5 }]])
-    expect(findCommentDensity(perFile, opts)).toEqual([])
+    expect(findCommentDensity(counts(20, 5), opts)).toEqual([])
+  })
+
+  it('skips a net comment trim (removed >= added comments)', () => {
+    expect(findCommentDensity(counts(10, 4, 4), opts)).toEqual([])
   })
 })

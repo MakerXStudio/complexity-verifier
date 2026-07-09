@@ -41,3 +41,26 @@ export function parseDiffAddedLines(diff: string): AddedLines {
 
   return added
 }
+
+/** Map each file in a unified diff to the content of the lines it removed (the `-` lines, marker stripped). */
+export function parseDiffRemovedLines(diff: string): Map<string, string[]> {
+  const removed = new Map<string, string[]>()
+  let currentFile: string | null = null
+
+  for (const line of diff.split('\n')) {
+    const fileMatch = line.match(FILE_HEADER)
+    if (fileMatch) {
+      const file = fileMatch[1] as string
+      currentFile = file === '/dev/null' ? null : file
+      continue
+    }
+    if (line.startsWith('---') || HUNK_HEADER.test(line) || currentFile === null) continue
+    if (line.startsWith('-')) {
+      const arr = removed.get(currentFile) ?? []
+      arr.push(line.slice(1))
+      removed.set(currentFile, arr)
+    }
+  }
+
+  return removed
+}

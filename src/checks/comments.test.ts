@@ -42,25 +42,30 @@ function diffFor(file: string, content: string): string {
   return `--- /dev/null\n+++ b/${file}\n@@ -0,0 +1,${lines.length} @@\n${body}\n`
 }
 
-describe('runComments — comment blocks', () => {
+describe('runComments — comment blocks (scope: all)', () => {
   it('passes and is named `comments` when no block exceeds max-lines', () => {
     const file = write('ok.ts', ['// one line', 'const a = 1'].join('\n'))
-    expect(runComments({ pattern: file, maxLines: 2 })).toEqual({ name: 'comments', ok: true })
+    expect(runComments({ pattern: file, maxLines: 2, scope: 'all' })).toEqual({ name: 'comments', ok: true })
   })
 
   it('fails on a comment block longer than max-lines', () => {
     const file = write('bad.ts', ['// one', '// two', '// three', 'const a = 1'].join('\n'))
-    expect(runComments({ pattern: file, maxLines: 2 })).toEqual({ name: 'comments', ok: false })
+    expect(runComments({ pattern: file, maxLines: 2, scope: 'all' })).toEqual({ name: 'comments', ok: false })
   })
 
   it('reports without failing under warn', () => {
     const file = write('warn.ts', ['// one', '// two', '// three', 'const a = 1'].join('\n'))
-    expect(runComments({ pattern: file, maxLines: 2, warn: true }).ok).toBe(true)
+    expect(runComments({ pattern: file, maxLines: 2, warn: true, scope: 'all' }).ok).toBe(true)
   })
 
   it('leaves JSDoc and context: blocks alone regardless of length', () => {
     const file = write('exempt.ts', ['/**', ' * a', ' * b', ' * c', ' */', '// context: durable', '// more', 'const a = 1'].join('\n'))
-    expect(runComments({ pattern: file, maxLines: 1 }).ok).toBe(true)
+    expect(runComments({ pattern: file, maxLines: 1, scope: 'all' }).ok).toBe(true)
+  })
+
+  it('does not flag a whole-file block under the default diff scope with an empty diff', () => {
+    const file = write('diffscope.ts', ['// one', '// two', '// three', 'const a = 1'].join('\n'))
+    expect(runComments({ pattern: file, maxLines: 2 }).ok).toBe(true)
   })
 })
 

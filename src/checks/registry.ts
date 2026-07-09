@@ -25,7 +25,7 @@ export const CHECKS: Check[] = [
   nativeCheck('complexity', 'Maintainability-index gate (cyclomatic + Halstead + SLOC)', true, () => runComplexity()),
   nativeCheck(
     'comments',
-    'Flag long comment blocks + narration/density on changed lines (JSDoc / context: exempt); --block-new-comments fails all changed-line comments',
+    'Flag low-value comments — long blocks + narration/density (JSDoc / context: exempt); --scope diff|all, --block-all for a zero-comment gate',
     true,
     () => runComments({ pushback: true }),
     'verifyx comments --pushback',

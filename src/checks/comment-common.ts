@@ -58,3 +58,11 @@ export function toSingleLine(text: string): string {
 export function commentSpan(text: string): number {
   return text.split('\n').length
 }
+
+// context: a line-level comment test for *removed* diff lines — we can't AST a line that no longer exists on
+// disk, so the density net-increase guard falls back to prefix matching (mirrors the checker's is_comment_line).
+export function looksLikeCommentLine(line: string): boolean {
+  const s = line.trimStart()
+  if (s.startsWith('#!')) return false
+  return s.startsWith('//') || s.startsWith('/*') || s.startsWith('*') || s.startsWith('#') || s.startsWith('--')
+}

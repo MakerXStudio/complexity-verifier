@@ -11,11 +11,15 @@ export type ForbiddenStringsRule = {
 export type VerifyConfig = {
   comments?: {
     ignore?: string[]
-    /** Flag session-narration comments on changed lines. Default true. */
+    /** Which comments the gates judge: `diff` (changed lines only) or `all` (whole codebase). Default `diff`. */
+    scope?: 'diff' | 'all'
+    /** Fail every comment in scope, not just heuristic hits. Default false. */
+    blockAll?: boolean
+    /** Flag session-narration comments. Default true. */
     narration?: boolean
-    /** Changed-line comment-density ratio (0–1) that fails a file; `false`/`0` disables. Default 0.3. */
+    /** Comment-density ratio (0–1) that fails a file; `false`/`0` disables. Default 0.3. */
     density?: number | false
-    /** Minimum added lines before density applies. Default 10. */
+    /** Minimum added/scanned lines before density applies. Default 10. */
     minAddedLines?: number
   }
   hardcodedColors?: { ignore?: string[]; root?: string }

@@ -15,6 +15,10 @@ const NARRATION_PATTERNS: RegExp[] = [
   /\b(?:step \d|todo:|fixme:)/i,
 ]
 
+// context: em-dash and curly quotes are high-precision LLM tells — models emit them freely, hand-typed code
+// comments rarely do. Borrowed from claude-comment-gate's H2 punctuation check.
+const LLM_PUNCT_TELL = /[—‘’“”]/
+
 export type DensityViolation = {
   file: string
   /** Added lines in the changed file. */
@@ -25,24 +29,35 @@ export type DensityViolation = {
   ratio: number
 }
 
-/** From comments already scoped to changed lines, return those whose text reads as session narration. */
+/** From comments in scope, return those whose text reads as session narration or carries an LLM punctuation tell. */
 export function findNarrationComments(comments: readonly NewComment[]): NewComment[] {
-  return comments.filter((c) => !isCommentExempt(c.text) && NARRATION_PATTERNS.some((re) => re.test(c.text)))
+  return comments.filter(
+    (c) => !isCommentExempt(c.text) && (NARRATION_PATTERNS.some((re) => re.test(c.text)) || LLM_PUNCT_TELL.test(c.text)),
+  )
 }
 
-export type FileCommentCounts = { added: number; commentLines: number }
+export type FileCommentCounts = {
+  /** Non-blank lines in scope (added non-blank lines for diff scope; non-blank file lines for `all`). */
+  added: number
+  /** Lines in scope that fall inside a non-exempt comment. */
+  commentLines: number
+  /** Comment lines the change removed — the density gate skips a net comment *trim* (diff scope only; 0 for `all`). */
+  removedComments: number
+}
 
 /**
- * Flag files where non-exempt comments make up too large a share of the added lines. Only files with at least
- * `minAddedLines` added lines are considered, so tiny diffs never trip the gate.
+ * Flag files where non-exempt comments make up too large a share of the lines in scope. Files with fewer than
+ * `minAddedLines` lines are skipped (tiny diffs never trip the gate), as is any change that removes at least as
+ * many comment lines as it adds — a net trim cannot be adding bloat.
  */
 export function findCommentDensity(
   perFile: ReadonlyMap<string, FileCommentCounts>,
   opts: { threshold: number; minAddedLines: number },
 ): DensityViolation[] {
   const out: DensityViolation[] = []
-  for (const [file, { added, commentLines }] of perFile) {
+  for (const [file, { added, commentLines, removedComments }] of perFile) {
     if (added < opts.minAddedLines) continue
+    if (commentLines <= removedComments) continue
     const ratio = added === 0 ? 0 : commentLines / added
     if (ratio >= opts.threshold) out.push({ file, added, commentLines, ratio })
   }

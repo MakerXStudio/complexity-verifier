@@ -1,55 +1,20 @@
 import { DEFAULT_IGNORE, DEFAULT_PATTERN, findSourceFiles, resolvePattern } from '../analyze.ts'
-import { findLongCommentBlocks } from '../comments.ts'
-import { printCommentBlockReport, printCommentDensityReport, printNarrationReport } from '../report.ts'
+import {
+  type CommentScope,
+  printBlockAllReport,
+  printCommentBlockReport,
+  printCommentDensityReport,
+  printNarrationReport,
+} from '../report.ts'
 import { color } from '../shared/color.ts'
-import { scanFileComments } from '../shared/comment-scan.ts'
 import { loadVerifyConfig } from '../shared/config.ts'
-import { parseDiffAddedLines } from '../shared/diff.ts'
-import { gitDiffAgainstBase } from '../shared/git.ts'
-import { commentSpan, isDiffExempt, type NewComment, shouldScan, toSingleLine } from './comment-common.ts'
-import { type FileCommentCounts, findCommentDensity, findNarrationComments } from './comment-heuristics.ts'
+import { type CommentCandidates, gatherAllComments, gatherDiffComments } from './comment-collect.ts'
+import { findCommentDensity, findNarrationComments } from './comment-heuristics.ts'
 import type { CheckResult } from './types.ts'
 
 const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
 const DEFAULT_DENSITY_THRESHOLD = 0.3
 const DEFAULT_MIN_ADDED_LINES = 10
-
-type ChangedComments = {
-  /** Non-exempt comments whose first line sits on a changed line (block-new-comments + narration). */
-  comments: NewComment[]
-  /** Per changed file: added-line count and how many of them fall inside a non-exempt comment (density). */
-  perFile: Map<string, FileCommentCounts>
-}
-
-// context: one pass over the diff feeds every diff-based gate (block-new-comments, narration, density) so we
-// scan each changed file's comments only once.
-function collectChangedLineComments(ignoreGlobs: readonly string[]): ChangedComments {
-  const added = parseDiffAddedLines(gitDiffAgainstBase())
-  const comments: NewComment[] = []
-  const perFile = new Map<string, FileCommentCounts>()
-  for (const [file, lines] of added) {
-    if (!shouldScan(file, ignoreGlobs)) continue
-    let commentLines = 0
-    for (const comment of scanFileComments(file)) {
-      if (isDiffExempt(comment.text)) continue
-      const span = commentSpan(comment.text)
-      for (let l = comment.line; l < comment.line + span; l++) if (lines.has(l)) commentLines++
-      if (lines.has(comment.line)) comments.push({ file, line: comment.line, text: toSingleLine(comment.text) })
-    }
-    perFile.set(file, { added: lines.size, commentLines })
-  }
-  comments.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
-  return { comments, perFile }
-}
-
-function reportCommentsOnChangedLines(findings: readonly NewComment[]): void {
-  console.error(color.red('\nComments on changed lines:\n'))
-  for (const { file, line, text } of findings) console.error(`  ${file}:${line} → ${text}`)
-  console.error(color.red(`\nTotal: ${findings.length} comment(s)`))
-  console.error(
-    '\nWith --block-new-comments, every comment on a changed line fails this gate, whether you added or edited it. Remove them and let the code document itself.',
-  )
-}
 
 export type CommentsOptions = {
   pattern?: string
@@ -57,13 +22,17 @@ export type CommentsOptions = {
   maxLines?: number
   pushback?: boolean
   warn?: boolean
-  /** Also fail on any comment on a line changed against the diff base (machine directives / context: exempt). */
+  /** Which comments the gates judge. Default `diff` (changed lines); `all` scans whole files. */
+  scope?: CommentScope
+  /** Fail every non-exempt comment in scope, not just heuristic hits. */
+  blockAll?: boolean
+  /** Back-compat alias for `scope: 'diff'` + `blockAll: true`. */
   blockNewComments?: boolean
-  /** Flag session-narration comments on changed lines. Default true. */
+  /** Flag session-narration comments. Default true. */
   narration?: boolean
-  /** Fail files whose changed-line comment share reaches this ratio (0–1). `false`/`0` disables. Default 0.3. */
+  /** Comment-density ratio (0–1) that fails a file; `false`/`0` disables. Default 0.3. */
   density?: number | false
-  /** Minimum added lines before density applies. Default 10. */
+  /** Minimum lines in scope before density applies. Default 10. */
   minAddedLines?: number
 }
 
@@ -72,73 +41,83 @@ function resolveDensity(opt: number | false | undefined, cfg: number | false | u
   return value === false ? 0 : value
 }
 
-function runChangedLineGates(opts: CommentsOptions): boolean {
-  const cfg = loadVerifyConfig().comments ?? {}
-  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (cfg.ignore ?? [])
-  const narrationOn = !opts.blockNewComments && (opts.narration ?? cfg.narration ?? true)
-  const densityThreshold = opts.blockNewComments ? 0 : resolveDensity(opts.density, cfg.density)
-  const minAddedLines = opts.minAddedLines ?? cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES
+const whereText = (scope: CommentScope): string => (scope === 'all' ? 'in the codebase' : 'on changed lines')
 
-  if (!opts.blockNewComments && !narrationOn && densityThreshold === 0) return true
-
-  const { comments, perFile } = collectChangedLineComments(ignoreGlobs)
-  let ok = true
-
-  // context: --block-new-comments is the strictest gate (every new comment fails), so it subsumes the narration
-  // and density heuristics; when it's on we run it alone.
-  if (opts.blockNewComments) {
-    if (comments.length === 0) {
-      console.log(color.green('No comments on changed lines.'))
-    } else {
-      reportCommentsOnChangedLines(comments)
-      ok = false
-    }
-    return ok
+function gather(opts: CommentsOptions, scope: CommentScope, ignoreGlobs: readonly string[], maxLines: number): CommentCandidates {
+  if (scope === 'all') {
+    const files = findSourceFiles(resolvePattern(opts.pattern ?? DEFAULT_PATTERN), [...DEFAULT_IGNORE, ...(opts.ignore ?? [])])
+    return gatherAllComments(files, maxLines)
   }
-
-  if (narrationOn) {
-    const narration = findNarrationComments(comments)
-    if (narration.length === 0) {
-      console.log(color.green('No narration comments on changed lines.'))
-    } else {
-      printNarrationReport(narration, { pushback: !!opts.pushback })
-      ok = false
-    }
-  }
-
-  if (densityThreshold > 0) {
-    const dense = findCommentDensity(perFile, { threshold: densityThreshold, minAddedLines })
-    if (dense.length === 0) {
-      console.log(color.green('Comment density within threshold.'))
-    } else {
-      printCommentDensityReport(dense, { threshold: densityThreshold, pushback: !!opts.pushback })
-      ok = false
-    }
-  }
-
-  return ok
+  return gatherDiffComments(ignoreGlobs, maxLines)
 }
 
 /**
- * Native check: flag comment blocks longer than `maxLines` (JSDoc and `context:`-prefixed blocks exempt), plus
- * diff-scoped heuristics on changed lines — session narration and comment density (both on by default). With
- * `blockNewComments`, instead fail on any comment on a changed line (the strictest gate).
+ * Native check for low-value comments across two orthogonal axes: **scope** (`diff` — only comments on changed
+ * lines, the default; or `all` — every comment in the matched files) and **strictness** (heuristics by default —
+ * long blocks, session narration, comment density; or `blockAll`, which fails every comment in scope). JSDoc,
+ * `context:` blocks, and machine directives are always exempt.
  */
 export function runComments(opts: CommentsOptions = {}): CheckResult {
+  const cfg = loadVerifyConfig().comments ?? {}
   const maxLines = opts.maxLines ?? DEFAULT_MAX_COMMENT_BLOCK_LINES
-  const pattern = opts.pattern ?? DEFAULT_PATTERN
-  const files = findSourceFiles(resolvePattern(pattern), [...DEFAULT_IGNORE, ...(opts.ignore ?? [])])
+  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (cfg.ignore ?? [])
+  const scope: CommentScope = opts.scope ?? (opts.blockNewComments ? 'diff' : undefined) ?? cfg.scope ?? 'diff'
+  const blockAll = opts.blockAll ?? opts.blockNewComments ?? cfg.blockAll ?? false
+  const narrationOn = !blockAll && (opts.narration ?? cfg.narration ?? true)
+  const densityThreshold = blockAll ? 0 : resolveDensity(opts.density, cfg.density)
+  const minAddedLines = opts.minAddedLines ?? cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES
+  const pushback = !!opts.pushback
 
-  const blocks = findLongCommentBlocks(files, maxLines)
-  let blocksOk = true
-  if (blocks.length === 0) {
-    console.log(color.green(`No comment block over ${maxLines} line(s)`))
-  } else {
-    printCommentBlockReport(blocks, maxLines, { pushback: !!opts.pushback, warn: !!opts.warn })
-    blocksOk = !!opts.warn
+  const candidates = gather(opts, scope, ignoreGlobs, maxLines)
+
+  // context: --block-all is the strictest gate (every comment fails), so it stands alone — no heuristics run.
+  if (blockAll) {
+    if (candidates.comments.length === 0) {
+      console.log(color.green(`No comments ${whereText(scope)}.`))
+      return { name: 'comments', ok: true }
+    }
+    printBlockAllReport(candidates.comments, { scope, pushback })
+    return { name: 'comments', ok: false }
   }
 
-  const changedLinesOk = runChangedLineGates(opts)
+  let ok = true
+  ok = reportBlocks(candidates, maxLines, { pushback, warn: !!opts.warn }) && ok
+  if (narrationOn) ok = reportNarration(candidates, scope, pushback) && ok
+  if (densityThreshold > 0) ok = reportDensity(candidates, scope, pushback, densityThreshold, minAddedLines) && ok
+  return { name: 'comments', ok }
+}
 
-  return { name: 'comments', ok: blocksOk && changedLinesOk }
+function reportBlocks(candidates: CommentCandidates, maxLines: number, opts: { pushback: boolean; warn: boolean }): boolean {
+  if (candidates.blocks.length === 0) {
+    console.log(color.green(`No comment block over ${maxLines} line(s)`))
+    return true
+  }
+  printCommentBlockReport(candidates.blocks, maxLines, opts)
+  return opts.warn
+}
+
+function reportNarration(candidates: CommentCandidates, scope: CommentScope, pushback: boolean): boolean {
+  const narration = findNarrationComments(candidates.comments)
+  if (narration.length === 0) {
+    console.log(color.green(`No narration comments ${whereText(scope)}.`))
+    return true
+  }
+  printNarrationReport(narration, { scope, pushback })
+  return false
+}
+
+function reportDensity(
+  candidates: CommentCandidates,
+  scope: CommentScope,
+  pushback: boolean,
+  threshold: number,
+  minAddedLines: number,
+): boolean {
+  const dense = findCommentDensity(candidates.perFile, { threshold, minAddedLines })
+  if (dense.length === 0) {
+    console.log(color.green('Comment density within threshold.'))
+    return true
+  }
+  printCommentDensityReport(dense, { threshold, scope, pushback })
+  return false
 }

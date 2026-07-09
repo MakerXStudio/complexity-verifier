@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { analyzeAddedComments, formatHookFeedback, hasFindings, type HookOptions } from './analyze.ts'
 
-const opts: HookOptions = { maxLines: 2, narration: true, density: 0.3, minAddedLines: 10 }
+const opts: HookOptions = { maxLines: 2, narration: true, density: 0.3, minAddedLines: 10, blockAll: false }
 
 describe('analyzeAddedComments', () => {
   it('flags a narration comment an edit introduced', () => {
@@ -31,6 +31,13 @@ describe('analyzeAddedComments', () => {
     const text = ['/**', ' * @param x the input', ' */', '// context: durable note about why', 'const x = 1'].join('\n')
     const f = analyzeAddedComments({ file: 'a.ts', addedText: text }, opts)
     expect(hasFindings(f)).toBe(false)
+  })
+
+  it('under blockAll, flags every non-exempt comment (and skips heuristics)', () => {
+    const f = analyzeAddedComments({ file: 'a.ts', addedText: '// a plain useful why\nconst x = 1' }, { ...opts, blockAll: true })
+    expect(f.all).toHaveLength(1)
+    expect(f.blocks).toEqual([])
+    expect(hasFindings(f)).toBe(true)
   })
 })
 

@@ -24,6 +24,7 @@ function resolveOptions(): { options: HookOptions; ignore: string[] } {
       narration: cfg.narration ?? true,
       density,
       minAddedLines: cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES,
+      blockAll: cfg.blockAll ?? false,
     },
     ignore: cfg.ignore ?? [],
   }
