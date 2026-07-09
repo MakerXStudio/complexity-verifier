@@ -42,7 +42,9 @@ withRunOptions(
 
 withRunOptions(
   program.command('all').description('Run every built-in check (verify:<name> scripts override the matching built-in)'),
-).action(async (opts: RunOptions) => {
+).action(async (_opts: RunOptions, command: Command) => {
+  // Run options live on the root command (commander treats them as global), so merge globals to catch flags after `all`.
+  const opts = command.optsWithGlobals() as RunOptions
   setVerbose(!!opts.verbose)
   configureMode(opts)
   process.exitCode = await runAll({ measure: opts.measure, tests: opts.tests })
