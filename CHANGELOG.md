@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0](https://github.com/MakerXStudio/verify/compare/v1.1.0...v1.2.0) (2026-07-09)
+
+
+### Features
+
+* highlight failing checks and de-noise duplicate-code output ([a62048c](https://github.com/MakerXStudio/verify/commit/a62048c5a81ff15854d61a9a2c74fea55270330a))
+
+
+### Bug Fixes
+
+* exclude release-please CHANGELOG.md from oxfmt ([c2ad063](https://github.com/MakerXStudio/verify/commit/c2ad063d720d9198175a75c1c6c5281bf1fd5567))
+* unbreak release format check + clearer verify --verbose output ([afabedf](https://github.com/MakerXStudio/verify/commit/afabedf08c26d07c4c41f05a265c31d0f7737a99))
+
 ## [1.1.0](https://github.com/MakerXStudio/verify/compare/v1.0.0...v1.1.0) (2026-07-09)
 
 
