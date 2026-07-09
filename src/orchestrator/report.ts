@@ -2,11 +2,11 @@ import { color } from '../shared/color.ts'
 import { isVerbose } from '../shared/spawn.ts'
 
 /**
- * Whether to print the preamble + success footer. A clean run is otherwise silent (just exit 0) to save
- * tokens; chatter is shown only when streaming (`--verbose`) or measuring (`--measure`).
+ * Whether to print the preamble + per-check output + success footer. A clean run is otherwise silent (just
+ * exit 0) to save tokens; that chatter is shown only under `--verbose`. `--measure` prints just its table.
  */
-export function chatty(measure?: boolean): boolean {
-  return isVerbose() || !!measure
+export function chatty(): boolean {
+  return isVerbose()
 }
 
 export type RunOutcome = { name: string; ok: boolean }

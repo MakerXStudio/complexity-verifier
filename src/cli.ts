@@ -10,7 +10,6 @@ import { registerUpgradeDocs } from './commands/registerUpgradeDocs.ts'
 import { orchestrate } from './orchestrator/run.ts'
 import { runAll } from './orchestrator/runAll.ts'
 import { configureMode } from './shared/mode.ts'
-import { setVerbose } from './shared/spawn.ts'
 
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json') as { version: string }
@@ -45,9 +44,8 @@ withRunOptions(
 ).action(async (_opts: RunOptions, command: Command) => {
   // Run options live on the root command (commander treats them as global), so merge globals to catch flags after `all`.
   const opts = command.optsWithGlobals() as RunOptions
-  setVerbose(!!opts.verbose)
   configureMode(opts)
-  process.exitCode = await runAll({ measure: opts.measure, tests: opts.tests })
+  process.exitCode = await runAll({ measure: opts.measure, tests: opts.tests, verbose: opts.verbose })
 })
 
 registerChecks(program)

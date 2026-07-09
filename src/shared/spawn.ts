@@ -1,5 +1,7 @@
 import { spawn } from 'node:child_process'
 
+import { emit, isCapturing } from './output.ts'
+
 let verboseMode = false
 
 /** When verbose, per-command output is always streamed; otherwise it is buffered and only shown on failure. */
@@ -42,7 +44,8 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
     }
     child.on('close', (code) => {
       const exitCode = code ?? 1
-      if (suppress && exitCode !== 0 && chunks.length > 0) process.stdout.write(Buffer.concat(chunks))
+      // When capturing (parallel `verifyx all`), hand all output to the buffer; otherwise flush only on failure.
+      if (suppress && chunks.length > 0 && (isCapturing() || exitCode !== 0)) emit(Buffer.concat(chunks).toString())
       resolve(exitCode)
     })
     child.on('error', () => resolve(127))

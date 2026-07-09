@@ -21,17 +21,12 @@ afterEach(() => {
 describe('chatty', () => {
   it('is quiet by default (a clean run prints nothing)', () => {
     setVerbose(false)
-    expect(chatty(false)).toBe(false)
+    expect(chatty()).toBe(false)
   })
 
-  it('is loud when --measure is set', () => {
-    setVerbose(false)
-    expect(chatty(true)).toBe(true)
-  })
-
-  it('is loud when verbose is set', () => {
+  it('is loud only when verbose is set (not for --measure)', () => {
     setVerbose(true)
-    expect(chatty(false)).toBe(true)
+    expect(chatty()).toBe(true)
   })
 })
 

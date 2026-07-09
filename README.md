@@ -57,7 +57,7 @@ There are three ways to invoke the CLI, from "all my checks" down to "one specif
 | `verifyx all`     | Every built-in check with default options, plus any custom `verify:*` scripts. A `verify:<name>` overrides its built-in. |
 | `verifyx <check>` | A single built-in by name, e.g. `verifyx complexity`. `verifyx list` shows them all.                                     |
 
-Both orchestration modes below (`verifyx` and `verifyx all`) are **completely silent on success**: no preamble, no per-check output, just exit `0`. Each check's output is buffered and printed **only if it fails**, so a run is cheap to loop or hand to an agent. (`--verbose` streams everything as it runs; `--measure` prints a status/duration table. Running a single built-in, `verifyx <check>`, always prints its report, since you asked for that check specifically.)
+Both orchestration modes below (`verifyx` and `verifyx all`) run their checks **in parallel** and are **completely silent on success**: no preamble, no per-check output, just exit `0`. Each check's output is buffered and printed **only if it fails**, so a run is cheap to loop or hand to an agent. `--verbose` prints every check's output (not just failures); `--measure` prints only a status/duration table; neither implies the other. (Running a single built-in, `verifyx <check>`, always prints its report, since you asked for that check specifically.)
 
 ### `verifyx`: run your curated checks
 
@@ -78,7 +78,7 @@ You curate your checks by adding `verify:*` scripts. Prefer calling the built-in
 
 ### `verifyx all`: run everything
 
-`verifyx all` runs **every** built-in check with its default options, plus any custom `verify:*` scripts you've defined. It's the quick "run everything" without hand-curating a list. Where you've defined a `verify:<name>` script matching a built-in, it **overrides** that built-in, so you can swap a single check's implementation without redefining the rest, e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
+`verifyx all` runs **every** built-in check with its default options, plus any custom `verify:*` scripts you've defined, all in parallel. It's the quick "run everything" without hand-curating a list. Where you've defined a `verify:<name>` script matching a built-in, it **overrides** that built-in, so you can swap a single check's implementation without redefining the rest, e.g. `"verify:lint": "eslint ."` makes `verifyx all` use ESLint for the lint step.
 
 ### Fix locally, check in CI
 

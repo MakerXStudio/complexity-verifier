@@ -40,7 +40,7 @@ export async function orchestrate(opts: OrchestrateOptions = {}): Promise<number
     return 0
   }
 
-  const loud = chatty(opts.measure)
+  const loud = chatty()
   if (loud) {
     console.log(`Running ${entries.length} verify script(s) in parallel:`)
     for (const entry of entries) console.log(`  - ${entry.name}`)
