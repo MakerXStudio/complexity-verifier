@@ -131,6 +131,8 @@ External checks shell out to their tool and **skip gracefully when it is not ins
 
 Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
 
+**Passing extra arguments through.** When you run an external check directly, anything after `--` is forwarded verbatim to the underlying tool, so you can tweak an invocation without ejecting it: `verifyx circular-deps -- src/*.ts` runs skott against `src/*.ts`, `verifyx lint -- --quiet` passes `--quiet` to oxlint. `verifyx init` scaffolds `verify:circular-deps` as `verifyx circular-deps -- src/*.ts` (skott needs a target), so the default is visible in your `package.json` and easy to point at your own source layout.
+
 Each external check is configured through its **tool's own config file**, exactly as you would use that tool standalone:
 
 - `lint`: [`.oxlintrc.json`](https://oxc.rs/docs/guide/usage/linter.html)
@@ -251,6 +253,17 @@ verifyx upgrade-docs              # Claude + other agents
 verifyx upgrade-docs --no-agents  # only .claude/ + CLAUDE.md
 ```
 
+### `verifyx eject`
+
+External checks wrap their tool behind the CLI (`verify:lint` runs `verifyx lint`, which runs `oxlint`) so fix-vs-check behaviour stays centralised. When you outgrow that and want to own the raw invocation, **eject** it: `verifyx eject <check>` replaces the wrapper script in `package.json` with the underlying command.
+
+```sh
+verifyx eject circular-deps   # verify:circular-deps → skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1
+verifyx eject lint            # verify:lint → oxlint . AND verify:lint:fix → oxlint --fix .
+```
+
+For a fixable check (`lint`, `format`) it writes both the base `verify:<name>` (check-mode) and the `verify:<name>:fix` variant, which is exactly the [fix-locally / check-in-CI](#fix-locally-check-in-ci) pairing `verifyx` already understands — so an ejected check keeps auto-fixing locally and only checking in CI. Ejecting **overwrites** the existing `verify:<name>` script (that's the point — it hands you the raw command to edit), and leaves every other script untouched. Only external checks can be ejected; native checks (`complexity`, `comments`, …) run in-process and have no shell command to hand over.
+
 ## Configuration
 
 The **native** checks that take persistent settings read them from a `verify.config.json` file, or a `verify` key in `package.json` (the standalone file wins if both are present). Each option is documented alongside its check above; collected here for reference:
@@ -312,7 +325,7 @@ Entry points:
 - **Checks**: `CHECKS`, `getCheck`, `recommendedChecks`, and the native `run*` functions above.
 - **Orchestration**: `orchestrate` (the bare `verifyx` runner) and `runAll` (`verifyx all`).
 - **Complexity internals**: `analyzeComplexity`, `scoreFiles`, `findSourceFiles`, `resolvePattern`, `forEachFunction`, `findLongCommentBlocks`, and the metric helpers `calculateCyclomaticComplexity`, `calculateHalstead`, `calculateMaintainabilityIndex`, `countSloc`.
-- **Scaffolding & config**: `applyInit` and `loadVerifyConfig`.
+- **Scaffolding & config**: `applyInit`, `applyEject` (+ `ejectScripts`), and `loadVerifyConfig`.
 
 ## Attribution
 

@@ -39,6 +39,19 @@ describe('check registry', () => {
     expect(getCheck('complexity')?.scaffold.script).toBe('verifyx complexity')
   })
 
+  it('scaffolds circular-deps with a default skott target after `--`', () => {
+    expect(getCheck('circular-deps')?.scaffold.script).toBe('verifyx circular-deps -- src/*.ts')
+  })
+
+  it('exposes raw tool commands for eject on external checks, but not native ones', () => {
+    expect(getCheck('lint')?.eject).toEqual({ check: 'oxlint .', fix: 'oxlint --fix .' })
+    expect(getCheck('circular-deps')?.eject?.check).toBe(
+      'skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1',
+    )
+    expect(getCheck('circular-deps')?.eject?.fix).toBeUndefined()
+    expect(getCheck('complexity')?.eject).toBeUndefined()
+  })
+
   it('returns undefined for unknown checks', () => {
     expect(getCheck('nope')).toBeUndefined()
   })

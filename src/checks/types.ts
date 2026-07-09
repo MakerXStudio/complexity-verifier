@@ -11,6 +11,12 @@ export type CheckResult = {
   durationMs?: number
 }
 
+/** Per-run options for a check. `extraArgs` are the tokens a user passes after `--` (external checks only). */
+export type RunDefaultOptions = {
+  /** Extra arguments appended verbatim to an external check's underlying command (e.g. `verifyx circular-deps -- src/*.ts`). */
+  extraArgs?: string[]
+}
+
 /** A single verification. Native checks run in-process; external checks shell out to a tool. */
 export type Check = {
   name: string
@@ -19,12 +25,22 @@ export type Check = {
   /** Whether `verifyx init` preselects this check as a recommended default. */
   recommended: boolean
   /** Run the check with its default options and print its own report. Resolves to the outcome. */
-  runDefault: () => Promise<CheckResult>
+  runDefault: (options?: RunDefaultOptions) => Promise<CheckResult>
   /** How `verify init` wires this check into a consuming project. */
   scaffold: {
     /** The npm script body written as `verify:<name>`. */
     script: string
     /** Extra devDependencies the check needs, installed on opt-in. */
     devDeps?: string[]
+  }
+  /**
+   * External checks only: the raw tool commands `verifyx eject <name>` inlines into `verify:<name>` (and
+   * `verify:<name>:fix`) so a consumer can own the invocation. Absent for native checks (they have no shell command).
+   */
+  eject?: {
+    /** Body for the `verify:<name>` script — the check-mode command. */
+    check: string
+    /** Body for the `verify:<name>:fix` script, when the tool is fixable. */
+    fix?: string
   }
 }

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module'
 import { Command } from 'commander'
 
 import { registerChecks } from './commands/registerChecks.ts'
+import { registerEject } from './commands/registerEject.ts'
 import { registerInit } from './commands/registerInit.ts'
 import { registerList } from './commands/registerList.ts'
 import { registerUpgradeDocs } from './commands/registerUpgradeDocs.ts'
@@ -52,6 +53,7 @@ registerChecks(program)
 registerList(program)
 registerInit(program)
 registerUpgradeDocs(program)
+registerEject(program)
 
 program.parseAsync().catch((error) => {
   console.error(error)

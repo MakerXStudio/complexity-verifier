@@ -74,8 +74,10 @@ export function registerChecks(program: Command): void {
     program
       .command(check.name)
       .description(check.description)
-      .action(async () => {
-        const result = await check.runDefault()
+      // Everything after `--` is forwarded verbatim to the underlying tool (e.g. `verifyx circular-deps -- src/*.ts`).
+      .argument('[toolArgs...]', 'extra arguments passed through to the underlying tool (after `--`)')
+      .action(async (toolArgs: string[]) => {
+        const result = await check.runDefault({ extraArgs: toolArgs })
         finish(result.ok)
       })
   }
