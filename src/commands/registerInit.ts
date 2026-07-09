@@ -36,9 +36,32 @@ type InitCliOptions = {
   agents?: boolean
   commentHook?: boolean
   claudeDir?: string
+  commentScope?: string
+  commentBlockAll?: boolean
 }
 
-type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean; commentHook: boolean }
+type CommentScope = 'diff' | 'all'
+type Selections = {
+  checks: string[]
+  targets: AgentTarget[]
+  defaultsOnly: boolean
+  commentHook: boolean
+  commentScope: CommentScope
+  commentBlockAll: boolean
+}
+
+async function askCommentOptions(): Promise<{ commentScope: CommentScope; commentBlockAll: boolean }> {
+  const commentScope = (await ask<string>('select', 'Comments — which comments should the check gate?', [
+    { name: 'diff', message: 'Changed lines only (gate new code, skip legacy)', enabled: true },
+    { name: 'all', message: 'The whole codebase' },
+  ])) as CommentScope
+  const commentBlockAll =
+    (await ask<string>('select', 'Comments — how strict?', [
+      { name: 'heuristics', message: 'Heuristics: long blocks, narration, density', enabled: true },
+      { name: 'blockAll', message: 'Block every comment in scope (context:/JSDoc still allowed)' },
+    ])) === 'blockAll'
+  return { commentScope, commentBlockAll }
+}
 
 async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
   const nonInteractive = !!opts.yes || !process.stdin.isTTY
@@ -51,6 +74,8 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
       targets,
       defaultsOnly: !!opts.defaultsOnly,
       commentHook: opts.commentHook !== false,
+      commentScope: opts.commentScope === 'all' ? 'all' : 'diff',
+      commentBlockAll: !!opts.commentBlockAll,
     }
   }
 
@@ -81,7 +106,11 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
         { name: 'no', message: 'No — rely on the verify/CI comments check only' },
       ])) === 'yes'
     : false
-  return { checks, targets, defaultsOnly, commentHook }
+
+  const { commentScope, commentBlockAll } = checks.includes('comments')
+    ? await askCommentOptions()
+    : { commentScope: 'diff' as CommentScope, commentBlockAll: false }
+  return { checks, targets, defaultsOnly, commentHook, commentScope, commentBlockAll }
 }
 
 function report(result: InitResult, defaultsOnly: boolean): void {
@@ -134,11 +163,22 @@ export function registerInit(program: Command): void {
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
     .option('--no-comment-hook', 'do not register the edit-time comment PostToolUse hook')
     .option('--claude-dir <path>', 'directory to write .claude/.agent-skills into (default: nearest existing .claude, else cwd)')
+    .option('--comment-scope <scope>', 'comments check scope baked into verify:comments: diff (default) or all')
+    .option('--comment-block-all', 'bake --block-all into verify:comments (fail every comment in scope)')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
-      const { checks, targets, defaultsOnly, commentHook } = await resolveSelections(opts)
+      const { checks, targets, defaultsOnly, commentHook, commentScope, commentBlockAll } = await resolveSelections(opts)
 
-      const result = applyInit({ cwd, checks, targets, defaultsOnly, commentHook, claudeDir: opts.claudeDir })
+      const result = applyInit({
+        cwd,
+        checks,
+        targets,
+        defaultsOnly,
+        commentHook,
+        claudeDir: opts.claudeDir,
+        commentScope,
+        commentBlockAll,
+      })
       report(result, defaultsOnly)
 
       if (result.devDeps.length > 0) {

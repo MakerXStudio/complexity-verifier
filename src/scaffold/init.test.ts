@@ -56,6 +56,22 @@ describe('applyInit', () => {
     expect(result.devDeps).toEqual(expect.arrayContaining(['knip', 'jscpd', 'skott']))
   })
 
+  it('bakes the chosen comment scope/strictness into verify:comments', () => {
+    applyInit({ cwd: dir, checks: ['comments'], targets: [], defaultsOnly: false, commentScope: 'all', commentBlockAll: true })
+    expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback --scope all --block-all')
+  })
+
+  it('defaults comment options to a plain pushback script', () => {
+    applyInit({ cwd: dir, checks: ['comments'], targets: [], defaultsOnly: false })
+    expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback')
+  })
+
+  it('emits a verify:comments override under defaults-only only when a non-default comment option is chosen', () => {
+    applyInit({ cwd: dir, checks: CHECKS.map((c) => c.name), targets: [], defaultsOnly: true, commentBlockAll: true })
+    expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback --block-all')
+    expect(readScripts().verify).toBe('verifyx all')
+  })
+
   it('does not clobber an existing verify:* script', () => {
     fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ scripts: { 'verify:complexity': 'custom' } }))
     applyInit({ cwd: dir, checks: ['complexity'], targets: [], defaultsOnly: false })

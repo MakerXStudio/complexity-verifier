@@ -20,6 +20,10 @@ export type InitOptions = {
   commentHook?: boolean
   /** Explicit directory to write `.claude`/`.agent-skills` into; overrides the nearest-`.claude` resolution. */
   claudeDir?: string
+  /** Comments check scope baked into the scaffolded script. Default `diff`. */
+  commentScope?: 'diff' | 'all'
+  /** Bake `--block-all` into the scaffolded comments script (fail every comment in scope). Default false. */
+  commentBlockAll?: boolean
 }
 
 export type InitResult = {
@@ -31,6 +35,14 @@ export type InitResult = {
   rootDir: string
 }
 
+/** The scaffolded `verify:comments` command, with the chosen scope/strictness baked in as flags. */
+function commentsScript(opts: InitOptions): string {
+  const flags = ['--pushback']
+  if (opts.commentScope === 'all') flags.push('--scope all')
+  if (opts.commentBlockAll) flags.push('--block-all')
+  return `verifyx comments ${flags.join(' ')}`
+}
+
 /** Pure scaffolding step: write package.json scripts + agent files, and report the devDeps to install. */
 export function applyInit(opts: InitOptions): InitResult {
   const devDeps: string[] = []
@@ -40,7 +52,13 @@ export function applyInit(opts: InitOptions): InitResult {
     const check = getCheck(name)
     if (!check) continue
     if (check.scaffold.devDeps) devDeps.push(...check.scaffold.devDeps)
-    if (!opts.defaultsOnly) scripts[`verify:${name}`] = check.scaffold.script
+    if (!opts.defaultsOnly) scripts[`verify:${name}`] = name === 'comments' ? commentsScript(opts) : check.scaffold.script
+  }
+
+  // context: even under defaults-only (no verify:* scripts) a non-default comment choice is emitted as a
+  // context: verify:comments override so `verifyx all` honours it; there's nowhere else to record the flags.
+  if (opts.defaultsOnly && opts.checks.includes('comments') && (opts.commentScope === 'all' || opts.commentBlockAll)) {
+    scripts['verify:comments'] = commentsScript(opts)
   }
 
   // Defaults-only wires the top `verify` script to `verifyx all` so it runs every built-in with no verify:* list.
