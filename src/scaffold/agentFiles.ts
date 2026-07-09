@@ -26,21 +26,24 @@ function readTemplate(relativePath: string): string {
  * Skills are CLI-owned (created/updated as a whole). The instruction files are user-owned, so the pointer is
  * only appended when absent and existing content is never rewritten.
  */
-export function writeAgentFiles(cwd: string, targets: readonly AgentTarget[]): ManagedFileResult[] {
+export function writeAgentFiles(rootDir: string, targets: readonly AgentTarget[]): ManagedFileResult[] {
   const results: ManagedFileResult[] = []
   const skill = readTemplate('skills/verify/SKILL.md')
   const pruneSkill = readTemplate('skills/prune-comments/SKILL.md')
+  const commentRule = readTemplate('rules/comments-only-when-non-obvious.md')
   const guidance = readTemplate('verify-guidance.md')
 
   if (targets.includes('claude')) {
-    writeManaged(path.join(cwd, '.claude', 'skills', 'verify', 'SKILL.md'), skill, results)
-    writeManaged(path.join(cwd, '.claude', 'skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
-    ensurePointer(path.join(cwd, 'CLAUDE.md'), guidance, POINTER_MARKER, results)
+    writeManaged(path.join(rootDir, '.claude', 'skills', 'verify', 'SKILL.md'), skill, results)
+    writeManaged(path.join(rootDir, '.claude', 'skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
+    writeManaged(path.join(rootDir, '.claude', 'rules', 'comments-only-when-non-obvious.md'), commentRule, results)
+    ensurePointer(path.join(rootDir, 'CLAUDE.md'), guidance, POINTER_MARKER, results)
   }
   if (targets.includes('agents')) {
-    writeManaged(path.join(cwd, '.agent-skills', 'verify', 'SKILL.md'), skill, results)
-    writeManaged(path.join(cwd, '.agent-skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
-    ensurePointer(path.join(cwd, 'AGENTS.md'), guidance, POINTER_MARKER, results)
+    writeManaged(path.join(rootDir, '.agent-skills', 'verify', 'SKILL.md'), skill, results)
+    writeManaged(path.join(rootDir, '.agent-skills', 'prune-comments', 'SKILL.md'), pruneSkill, results)
+    writeManaged(path.join(rootDir, '.agent-skills', 'rules', 'comments-only-when-non-obvious.md'), commentRule, results)
+    ensurePointer(path.join(rootDir, 'AGENTS.md'), guidance, POINTER_MARKER, results)
   }
 
   results.sort((a, b) => a.path.localeCompare(b.path))

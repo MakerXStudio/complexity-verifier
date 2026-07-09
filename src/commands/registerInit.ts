@@ -35,6 +35,7 @@ type InitCliOptions = {
   claude?: boolean
   agents?: boolean
   commentHook?: boolean
+  claudeDir?: string
 }
 
 type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean; commentHook: boolean }
@@ -92,6 +93,13 @@ function report(result: InitResult, defaultsOnly: boolean): void {
     if (file.action === 'unchanged') continue
     console.log(`  ${ACTION_MARK[file.action]} ${file.path} (${file.action})`)
   }
+  if (result.rootDir !== process.cwd()) {
+    console.log(
+      color.yellow(
+        `\nAgent files were written to ${result.rootDir} (nearest existing .claude). Claude Code only loads them when launched from there — pass --claude-dir to target a different directory.`,
+      ),
+    )
+  }
 }
 
 /** Summarise the dependency install: what was skipped, installed, and — last, so it's the takeaway — what failed. */
@@ -125,11 +133,12 @@ export function registerInit(program: Command): void {
     .option('--no-claude', 'do not write .claude/ files (non-interactive)')
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
     .option('--no-comment-hook', 'do not register the edit-time comment PostToolUse hook')
+    .option('--claude-dir <path>', 'directory to write .claude/.agent-skills into (default: nearest existing .claude, else cwd)')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
       const { checks, targets, defaultsOnly, commentHook } = await resolveSelections(opts)
 
-      const result = applyInit({ cwd, checks, targets, defaultsOnly, commentHook })
+      const result = applyInit({ cwd, checks, targets, defaultsOnly, commentHook, claudeDir: opts.claudeDir })
       report(result, defaultsOnly)
 
       if (result.devDeps.length > 0) {
