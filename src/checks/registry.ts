@@ -76,6 +76,8 @@ export const CHECKS: Check[] = [
     checkCommand: 'skott --displayMode=raw --showCircularDependencies --exitCodeOnCircularDependencies=1',
     devDeps: ['skott'],
     docs: 'https://github.com/antoine-coulon/skott',
+    // skott needs a target; scaffold it after `--` so consumers can see and adjust it (e.g. to their source layout).
+    scaffoldArgs: 'src/*.ts',
   }),
   defineExternalCheck({
     name: 'duplicate-code',

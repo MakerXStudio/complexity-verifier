@@ -26,3 +26,13 @@ export function addVerifyScripts(packageJsonPath: string, scripts: Record<string
   fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`)
   return added
 }
+
+/**
+ * Set the given scripts in package.json, overwriting any existing bodies. Used by `verifyx eject`, which
+ * deliberately replaces a `verifyx <name>` wrapper script with the underlying raw tool command.
+ */
+export function setScripts(packageJsonPath: string, scripts: Record<string, string>): void {
+  const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8')) as PackageJson
+  pkg.scripts = { ...pkg.scripts, ...scripts }
+  fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`)
+}

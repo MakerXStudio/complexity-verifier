@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { externalFailureHint, selectCommand } from './external.ts'
+import { appendArgs, defineExternalCheck, externalFailureHint, selectCommand } from './external.ts'
 
 const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
 const notFixable = { checkCommand: 'tsc --noEmit' }
@@ -34,5 +34,48 @@ describe('externalFailureHint', () => {
     expect(hint).toContain('skott')
     expect(hint).toContain('skott src')
     expect(hint).not.toContain('undefined')
+  })
+})
+
+describe('appendArgs', () => {
+  it('appends passthrough args verbatim, unquoted (so shell globs still expand)', () => {
+    expect(appendArgs('skott --showCircularDependencies', ['src/*.ts'])).toBe('skott --showCircularDependencies src/*.ts')
+  })
+
+  it('returns the command unchanged when there are no extra args', () => {
+    expect(appendArgs('oxlint .', [])).toBe('oxlint .')
+    expect(appendArgs('oxlint .')).toBe('oxlint .')
+  })
+})
+
+describe('defineExternalCheck', () => {
+  it('exposes raw commands for eject, including the fix variant when fixable', () => {
+    const lint = defineExternalCheck({
+      name: 'lint',
+      description: '',
+      bin: 'oxlint',
+      checkCommand: 'oxlint .',
+      fixCommand: 'oxlint --fix .',
+      devDeps: [],
+    })
+    expect(lint.eject).toEqual({ check: 'oxlint .', fix: 'oxlint --fix .' })
+  })
+
+  it('scaffolds default trailing args after `--` so a consumer can see and tweak them', () => {
+    const circular = defineExternalCheck({
+      name: 'circular-deps',
+      description: '',
+      bin: 'skott',
+      checkCommand: 'skott',
+      devDeps: [],
+      scaffoldArgs: 'src/*.ts',
+    })
+    expect(circular.scaffold.script).toBe('verifyx circular-deps -- src/*.ts')
+    expect(circular.eject).toEqual({ check: 'skott', fix: undefined })
+  })
+
+  it('scaffolds a bare CLI call when there are no default args', () => {
+    const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: 'knip', devDeps: [] })
+    expect(knip.scaffold.script).toBe('verifyx unused-code')
   })
 })
