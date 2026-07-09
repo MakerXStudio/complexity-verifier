@@ -28,7 +28,7 @@ export type HardcodedColorsOptions = { root?: string; ignore?: readonly string[]
 export function runHardcodedColors(opts: HardcodedColorsOptions = {}): CheckResult {
   const config = loadVerifyConfig()
   const root = opts.root ?? config.hardcodedColors?.root ?? 'src'
-  const ignoreGlobs = opts.ignore ?? config.hardcodedColors?.ignore ?? []
+  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (config.hardcodedColors?.ignore ?? [])
 
   const files: string[] = []
   walk(root, files)

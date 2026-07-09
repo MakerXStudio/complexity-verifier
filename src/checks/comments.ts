@@ -9,7 +9,7 @@ import { color } from '../shared/color.ts'
 import { scanFileComments } from '../shared/comment-scan.ts'
 import { loadVerifyConfig } from '../shared/config.ts'
 import { parseDiffAddedLines } from '../shared/diff.ts'
-import { gitDiffHead } from '../shared/git.ts'
+import { gitDiffAgainstBase } from '../shared/git.ts'
 import type { CheckResult } from './types.ts'
 
 const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
@@ -52,9 +52,9 @@ function toSingleLine(text: string): string {
 
 type NewComment = { file: string; line: number; text: string }
 
-// context: the --block-new-comments behaviour — flag any comment sitting on a line changed against HEAD.
+// context: the --block-new-comments behaviour — flag any comment sitting on a changed line (vs HEAD, or the CI base).
 function findCommentsOnChangedLines(ignoreGlobs: readonly string[]): NewComment[] {
-  const added = parseDiffAddedLines(gitDiffHead())
+  const added = parseDiffAddedLines(gitDiffAgainstBase())
   const findings: NewComment[] = []
   for (const [file, lines] of added) {
     if (!shouldScan(file, ignoreGlobs)) continue
@@ -107,7 +107,7 @@ export function runComments(opts: CommentsOptions = {}): CheckResult {
 
   let changedLinesOk = true
   if (opts.blockNewComments) {
-    const ignoreGlobs = opts.ignore ?? loadVerifyConfig().comments?.ignore ?? []
+    const ignoreGlobs = opts.ignore?.length ? opts.ignore : (loadVerifyConfig().comments?.ignore ?? [])
     const findings = findCommentsOnChangedLines(ignoreGlobs)
     if (findings.length === 0) {
       console.log(color.green('No comments on changed lines.'))
