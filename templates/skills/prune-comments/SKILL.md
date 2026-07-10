@@ -21,8 +21,8 @@ Scope options (`verifyx comments` handles the git/diff scoping itself — you do
 
 - **Whole repo:** `npx verifyx comments --scope all --pushback` — audit and prune every comment in the codebase,
   not just the diff.
-- **Every comment, not just heuristic hits:** add `--block-all` (with either scope) when the goal is to remove
-  _all_ comments in scope, keeping only `context:`/JSDoc.
+- **Every comment, not just heuristic hits:** add `--block-all` (with either scope) to remove _every_ comment in
+  scope, not just the heuristic hits.
 
 ## 2. Delete or keep
 
@@ -33,10 +33,8 @@ Apply the `comments-only-when-non-obvious` rule to each flagged comment:
 - **Keep** only a non-obvious _why_: a workaround, an external constraint, or a deliberate non-obvious deviation.
 
 Prefer fixing the code over keeping the comment: a better name, a smaller function, or a narrower type often
-removes the need for the comment entirely.
-
-If a kept comment is genuinely durable context the code cannot express, prefix its first line with `context:`.
-Do **not** mark low-value comments `context:` to slip them past the gate — `context:` pages a human to approve it.
+removes the need for the comment entirely. Do not try to slip a low-value comment past the gate — remove it, or
+make the code self-explanatory.
 
 ## 3. Apply and re-run
 
