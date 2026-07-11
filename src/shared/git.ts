@@ -8,8 +8,6 @@ function run(command: string): string {
   }
 }
 
-// context: locally we diff the working tree against HEAD (uncommitted changes). A CI checkout has nothing
-// uncommitted, so there we diff against the merge base with the PR base branch, else the gate is a no-op.
 function resolveDiffBase(): string {
   if (!process.env.CI) return 'HEAD'
   const base = process.env.VERIFY_DIFF_BASE || (process.env.GITHUB_BASE_REF ? `origin/${process.env.GITHUB_BASE_REF}` : '')

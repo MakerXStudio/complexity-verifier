@@ -3,8 +3,6 @@ import path from 'node:path'
 
 import type { ManagedFileResult } from './writeManaged.ts'
 
-// context: the edit-time comment gate is a PostToolUse hook that runs after the agent edits a file; the marker
-// lets us detect our own entry so re-running init never duplicates it.
 export const HOOK_COMMAND = 'npx verifyx comments-hook'
 const HOOK_MATCHER = 'Edit|Write|MultiEdit'
 
@@ -44,7 +42,7 @@ export function ensureClaudeHook(cwd: string, results: ManagedFileResult[]): voi
   try {
     settings = JSON.parse(fs.readFileSync(file, 'utf-8')) as ClaudeSettings
   } catch {
-    // context: never clobber settings we can't parse — leave the file for the user to fix and report no change.
+    // never clobber settings we can't parse.
     results.push({ path: file, action: 'unchanged' })
     return
   }

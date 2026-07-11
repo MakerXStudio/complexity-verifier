@@ -12,8 +12,8 @@ function str(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
-// context: the file path key differs across Claude Code versions/tools (file_path vs path), so we accept either.
 function filePathOf(input: Json): string | undefined {
+  // the file path key differs across Claude Code versions/tools (file_path vs path), so we accept either.
   return str(input.file_path) ?? str(input.path)
 }
 
