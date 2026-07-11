@@ -4,18 +4,27 @@ import enquirer from 'enquirer'
 import { CHECKS, recommendedChecks } from '../checks/registry.ts'
 import type { AgentTarget } from '../scaffold/agentFiles.ts'
 import { applyInit, type InitResult } from '../scaffold/init.ts'
+import { type InstallReport, installDevDeps } from '../scaffold/installDeps.ts'
 import { ACTION_MARK } from '../scaffold/writeManaged.ts'
 import { color } from '../shared/color.ts'
-import { runCommand } from '../shared/spawn.ts'
 
-type Choice = { name: string; message: string; enabled?: boolean }
+export type Choice = { name: string; message: string; enabled?: boolean }
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
 
+/**
+ * enquirer's multiselect ignores each choice's `enabled` for the submitted result — it only renders a marker, so a
+ * user who just hits enter gets []. The enabled names must be passed as `initial` to actually pre-select them.
+ */
+export function preSelected(choices: readonly Choice[]): string[] {
+  return choices.filter((c) => c.enabled).map((c) => c.name)
+}
+
 async function ask<T>(type: 'select' | 'multiselect', message: string, choices: Choice[]): Promise<T> {
-  const response = (await enquirer.prompt({ type, name: 'selected', message, choices })) as { selected: T }
+  const initial = type === 'multiselect' ? preSelected(choices) : undefined
+  const response = (await enquirer.prompt({ type, name: 'selected', message, choices, initial })) as { selected: T }
   return response.selected
 }
 
@@ -73,7 +82,26 @@ function report(result: InitResult, defaultsOnly: boolean): void {
     if (file.action === 'unchanged') continue
     console.log(`  ${ACTION_MARK[file.action]} ${file.path} (${file.action})`)
   }
-  console.log(color.dim('\nRun `npm run verify` (or `npx verifyx`) to run your verifications.'))
+}
+
+/** Summarise the dependency install: what was skipped, installed, and — last, so it's the takeaway — what failed. */
+function reportInstall(install: InstallReport): void {
+  if (install.skipped.length > 0) {
+    console.log(color.dim(`\nSkipped ${install.skipped.length} already-installed devDependenc(ies): ${install.skipped.join(', ')}`))
+  }
+  if (install.installed.length > 0) {
+    console.log(color.green(`Installed ${install.installed.length} devDependenc(ies): ${install.installed.join(', ')}`))
+  }
+  if (install.failed.length > 0) {
+    console.error(
+      color.yellow(
+        `\n⚠ Failed to install ${install.failed.length} devDependenc(ies): ${install.failed.join(', ')}` +
+          `\n  init finished; the rest is wired up. Resolve these yourself — e.g. a peer-dependency conflict may need` +
+          `\n  a compatible version or --legacy-peer-deps. Install manually with:` +
+          `\n    npm install --save-dev ${install.failed.join(' ')}`,
+      ),
+    )
+  }
 }
 
 /** `verifyx init` — interactively scaffold checks + agent files into the current project. */
@@ -91,12 +119,13 @@ export function registerInit(program: Command): void {
       const { checks, targets, defaultsOnly } = await resolveSelections(opts)
 
       const result = applyInit({ cwd, checks, targets, defaultsOnly })
+      report(result, defaultsOnly)
 
       if (result.devDeps.length > 0) {
-        console.log(`Installing ${result.devDeps.length} devDependenc(ies): ${result.devDeps.join(', ')}`)
-        const code = await runCommand(`npm install --save-dev ${result.devDeps.join(' ')}`, { cwd })
-        if (code !== 0) console.error(color.yellow('npm install failed — install those devDependencies manually.'))
+        console.log(color.dim(`\nResolving ${result.devDeps.length} devDependenc(ies): ${result.devDeps.join(', ')}`))
+        reportInstall(await installDevDeps(result.devDeps, cwd))
       }
-      report(result, defaultsOnly)
+
+      console.log(color.dim('\nRun `npm run verify` (or `npx verifyx`) to run your verifications.'))
     })
 }
