@@ -232,7 +232,7 @@ verifyx init
 It first asks how `verify` should run: **run all built-in checks** (`verifyx all`, no `verify:*` scripts) or **pick specific checks** to wire up. Then you multi-select **agent targets** (Claude and/or other agents), and, if you chose to pick, the **checks**. After that it:
 
 - writes the selected `verify:*` scripts to `package.json` (never clobbering existing ones),
-- installs the external checks' tools as `--save-dev`,
+- installs the external checks' tools as `--save-dev`, **skipping any already declared in `package.json` or present in `node_modules`** (so an existing `typescript`/`oxlint` is never re-installed or version-bumped). If the install hits a conflict (e.g. a peer-dependency clash), it isolates the failing package(s), installs the rest, and reports what to install manually at the end instead of aborting,
 - writes the **`verify` skill**: the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
 - appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten),
 - if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` (verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused). Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
