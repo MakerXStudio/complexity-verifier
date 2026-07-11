@@ -1,81 +1,20 @@
-import fs from 'node:fs'
-
-import { minimatch } from 'minimatch'
-
 import { DEFAULT_IGNORE, DEFAULT_PATTERN, findSourceFiles, resolvePattern } from '../analyze.ts'
-import { findLongCommentBlocks } from '../comments.ts'
-import { printCommentBlockReport } from '../report.ts'
+import {
+  type CommentScope,
+  printBlockAllReport,
+  printCommentBlockReport,
+  printCommentDensityReport,
+  printNarrationReport,
+} from '../report.ts'
 import { color } from '../shared/color.ts'
-import { scanFileComments } from '../shared/comment-scan.ts'
 import { loadVerifyConfig } from '../shared/config.ts'
-import { parseDiffAddedLines } from '../shared/diff.ts'
-import { gitDiffAgainstBase } from '../shared/git.ts'
+import { type CommentCandidates, gatherAllComments, gatherDiffComments } from './comment-collect.ts'
+import { findCommentDensity, findNarrationComments } from './comment-heuristics.ts'
 import type { CheckResult } from './types.ts'
 
 const DEFAULT_MAX_COMMENT_BLOCK_LINES = 2
-
-const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.cts', '.mts', '.js', '.jsx', '.mjs', '.cjs', '.yml', '.yaml']
-
-// context: machine directives steer tooling, not humans, so a changed line carrying one is never a "comment"
-// worth removing; `context:` is this project's durable-context escape hatch and is likewise exempt.
-const MACHINE_DIRECTIVES = [
-  'oxlint-disable',
-  'oxlint-enable',
-  '@ts-expect-error',
-  '@ts-ignore',
-  '@ts-nocheck',
-  'eslint-disable',
-  'eslint-enable',
-  'prettier-ignore',
-  'istanbul ignore',
-  'v8 ignore',
-  'c8 ignore',
-  '@vitest-environment',
-]
-
-function isCommentExempt(text: string): boolean {
-  const lower = text.toLowerCase()
-  if (MACHINE_DIRECTIVES.some((d) => lower.includes(d))) return true
-  const stripped = text.replace(/^\s*(?:\/\/+|\/\*+|\*|#)\s*/, '')
-  return stripped.toLowerCase().startsWith('context:')
-}
-
-function shouldScan(file: string, ignoreGlobs: readonly string[]): boolean {
-  if (!SCANNED_EXTENSIONS.some((ext) => file.endsWith(ext))) return false
-  if (ignoreGlobs.some((glob) => minimatch(file, glob))) return false
-  return fs.existsSync(file)
-}
-
-function toSingleLine(text: string): string {
-  return text.replace(/\s+/g, ' ').trim()
-}
-
-type NewComment = { file: string; line: number; text: string }
-
-// context: the --block-new-comments behaviour — flag any comment sitting on a changed line (vs HEAD, or the CI base).
-function findCommentsOnChangedLines(ignoreGlobs: readonly string[]): NewComment[] {
-  const added = parseDiffAddedLines(gitDiffAgainstBase())
-  const findings: NewComment[] = []
-  for (const [file, lines] of added) {
-    if (!shouldScan(file, ignoreGlobs)) continue
-    for (const comment of scanFileComments(file)) {
-      if (!lines.has(comment.line)) continue
-      if (isCommentExempt(comment.text)) continue
-      findings.push({ file, line: comment.line, text: toSingleLine(comment.text) })
-    }
-  }
-  findings.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
-  return findings
-}
-
-function reportCommentsOnChangedLines(findings: readonly NewComment[]): void {
-  console.error(color.red('\nComments on changed lines:\n'))
-  for (const { file, line, text } of findings) console.error(`  ${file}:${line} → ${text}`)
-  console.error(color.red(`\nTotal: ${findings.length} comment(s)`))
-  console.error(
-    '\nWith --block-new-comments, every comment on a changed line fails this gate, whether you added or edited it. Remove them and let the code document itself.',
-  )
-}
+const DEFAULT_DENSITY_THRESHOLD = 0.3
+const DEFAULT_MIN_ADDED_LINES = 10
 
 export type CommentsOptions = {
   pattern?: string
@@ -83,39 +22,117 @@ export type CommentsOptions = {
   maxLines?: number
   pushback?: boolean
   warn?: boolean
-  /** Also fail on any comment on a line changed against HEAD (machine directives / context: exempt). */
+  /** Which comments the gates judge. Default `diff` (changed lines); `all` scans whole files. */
+  scope?: CommentScope
+  /** Fail every non-exempt comment in scope, not just heuristic hits. */
+  blockAll?: boolean
+  /** Back-compat alias for `scope: 'diff'` + `blockAll: true`. */
   blockNewComments?: boolean
+  /** Flag session-narration comments. Default true. */
+  narration?: boolean
+  /** Comment-density ratio (0–1) that fails a file; `false`/`0` disables. Default 0.3. */
+  density?: number | false
+  /** Minimum lines in scope before density applies. Default 10. */
+  minAddedLines?: number
+  /** Treat `context:`-prefixed comments as exempt. Default true; set false for a stricter gate / cleanup. */
+  contextOverride?: boolean
+}
+
+function resolveDensity(opt: number | false | undefined, cfg: number | false | undefined): number {
+  const value = opt ?? cfg ?? DEFAULT_DENSITY_THRESHOLD
+  return value === false ? 0 : value
+}
+
+const whereText = (scope: CommentScope): string => (scope === 'all' ? 'in the codebase' : 'on changed lines')
+
+function gather(
+  opts: CommentsOptions,
+  scope: CommentScope,
+  ignoreGlobs: readonly string[],
+  maxLines: number,
+  contextOverride: boolean,
+): CommentCandidates {
+  if (scope === 'all') {
+    const files = findSourceFiles(resolvePattern(opts.pattern ?? DEFAULT_PATTERN), [...DEFAULT_IGNORE, ...ignoreGlobs])
+    return gatherAllComments(files, maxLines, contextOverride)
+  }
+  return gatherDiffComments(ignoreGlobs, maxLines, contextOverride)
 }
 
 /**
- * Native check: flag comment blocks longer than `maxLines` (JSDoc and `context:`-prefixed blocks exempt).
- * With `blockNewComments`, additionally fail on any comment on a line changed against HEAD.
+ * Native check for low-value comments across two orthogonal axes: **scope** (`diff` — only comments on changed
+ * lines, the default; or `all` — every comment in the matched files) and **strictness** (heuristics by default —
+ * long blocks, session narration, comment density; or `blockAll`, which fails every comment in scope). JSDoc,
+ * `context:` blocks, and machine directives are always exempt.
  */
 export function runComments(opts: CommentsOptions = {}): CheckResult {
+  const cfg = loadVerifyConfig().comments ?? {}
   const maxLines = opts.maxLines ?? DEFAULT_MAX_COMMENT_BLOCK_LINES
-  const pattern = opts.pattern ?? DEFAULT_PATTERN
-  const files = findSourceFiles(resolvePattern(pattern), [...DEFAULT_IGNORE, ...(opts.ignore ?? [])])
+  const ignoreGlobs = opts.ignore?.length ? opts.ignore : (cfg.ignore ?? [])
+  const scope: CommentScope = opts.scope ?? (opts.blockNewComments ? 'diff' : undefined) ?? cfg.scope ?? 'diff'
+  const blockAll = opts.blockAll ?? opts.blockNewComments ?? cfg.blockAll ?? false
+  const narrationOn = !blockAll && (opts.narration ?? cfg.narration ?? true)
+  const densityThreshold = blockAll ? 0 : resolveDensity(opts.density, cfg.density)
+  const minAddedLines = opts.minAddedLines ?? cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES
+  const contextOverride = opts.contextOverride ?? cfg.contextOverride ?? true
+  const pushback = !!opts.pushback
 
-  const blocks = findLongCommentBlocks(files, maxLines)
-  let blocksOk = true
-  if (blocks.length === 0) {
-    console.log(color.green(`No comment block over ${maxLines} line(s)`))
-  } else {
-    printCommentBlockReport(blocks, maxLines, { pushback: !!opts.pushback, warn: !!opts.warn })
-    blocksOk = !!opts.warn
-  }
+  const candidates = gather(opts, scope, ignoreGlobs, maxLines, contextOverride)
 
-  let changedLinesOk = true
-  if (opts.blockNewComments) {
-    const ignoreGlobs = opts.ignore?.length ? opts.ignore : (loadVerifyConfig().comments?.ignore ?? [])
-    const findings = findCommentsOnChangedLines(ignoreGlobs)
-    if (findings.length === 0) {
-      console.log(color.green('No comments on changed lines.'))
-    } else {
-      reportCommentsOnChangedLines(findings)
-      changedLinesOk = false
+  if (blockAll) {
+    if (candidates.comments.length === 0) {
+      console.log(color.green(`No comments ${whereText(scope)}.`))
+      return { name: 'comments', ok: true }
     }
+    printBlockAllReport(candidates.comments, { scope, pushback, contextOverride })
+    return { name: 'comments', ok: false }
   }
 
-  return { name: 'comments', ok: blocksOk && changedLinesOk }
+  let ok = true
+  ok = reportBlocks(candidates, maxLines, { pushback, warn: !!opts.warn, contextOverride }) && ok
+  if (narrationOn) ok = reportNarration(candidates, scope, pushback, contextOverride) && ok
+  if (densityThreshold > 0)
+    ok = reportDensity(candidates, { scope, pushback, contextOverride, threshold: densityThreshold, minAddedLines }) && ok
+  return { name: 'comments', ok }
+}
+
+function reportBlocks(
+  candidates: CommentCandidates,
+  maxLines: number,
+  opts: { pushback: boolean; warn: boolean; contextOverride: boolean },
+): boolean {
+  if (candidates.blocks.length === 0) {
+    console.log(color.green(`No comment block over ${maxLines} line(s)`))
+    return true
+  }
+  printCommentBlockReport(candidates.blocks, maxLines, opts)
+  return opts.warn
+}
+
+function reportNarration(candidates: CommentCandidates, scope: CommentScope, pushback: boolean, contextOverride: boolean): boolean {
+  const narration = findNarrationComments(candidates.comments, contextOverride)
+  if (narration.length === 0) {
+    console.log(color.green(`No narration comments ${whereText(scope)}.`))
+    return true
+  }
+  printNarrationReport(narration, { scope, pushback, contextOverride })
+  return false
+}
+
+function reportDensity(
+  candidates: CommentCandidates,
+  opts: { scope: CommentScope; pushback: boolean; contextOverride: boolean; threshold: number; minAddedLines: number },
+): boolean {
+  const dense = findCommentDensity(candidates.perFile, { threshold: opts.threshold, minAddedLines: opts.minAddedLines })
+  if (dense.length === 0) {
+    console.log(color.green('Comment density within threshold.'))
+    return true
+  }
+  printCommentDensityReport(dense, {
+    threshold: opts.threshold,
+    scope: opts.scope,
+    pushback: opts.pushback,
+    contextOverride: opts.contextOverride,
+  })
+  return false
 }

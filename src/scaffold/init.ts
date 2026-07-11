@@ -3,6 +3,8 @@ import path from 'node:path'
 import { getCheck } from '../checks/registry.ts'
 import type { Check } from '../checks/types.ts'
 import { type AgentTarget, writeAgentFiles } from './agentFiles.ts'
+import { resolveClaudeDir } from './claudeDir.ts'
+import { ensureClaudeHook } from './claudeSettings.ts'
 import { ensureKnipIgnores } from './knipConfig.ts'
 import { addVerifyScripts } from './packageScripts.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
@@ -14,6 +16,16 @@ export type InitOptions = {
   targets: readonly AgentTarget[]
   /** When true, do not write `verify:*` scripts — rely on `verify`'s built-in defaults. */
   defaultsOnly: boolean
+  /** Register the edit-time comment gate as a Claude PostToolUse hook (claude target only). Default off. */
+  commentHook?: boolean
+  /** Explicit directory to write `.claude`/`.agent-skills` into; overrides the nearest-`.claude` resolution. */
+  claudeDir?: string
+  /** Comments check scope baked into the scaffolded script. Default `diff`. */
+  commentScope?: 'diff' | 'all'
+  /** Bake `--block-all` into the scaffolded comments script (fail every comment in scope). Default false. */
+  commentBlockAll?: boolean
+  /** Honour the `context:` override in the scaffolded script. Default true; false bakes `--no-context-override`. */
+  commentContextOverride?: boolean
 }
 
 export type InitResult = {
@@ -21,6 +33,22 @@ export type InitResult = {
   /** devDependencies the selected external checks need (deduped). */
   devDeps: string[]
   agentFiles: ManagedFileResult[]
+  /** The directory the agent integration was written to (may differ from cwd in a monorepo). */
+  rootDir: string
+}
+
+/** The scaffolded `verify:comments` command, with the chosen scope/strictness baked in as flags. */
+function commentsScript(opts: InitOptions): string {
+  const flags = ['--pushback']
+  if (opts.commentScope === 'all') flags.push('--scope all')
+  if (opts.commentBlockAll) flags.push('--block-all')
+  if (opts.commentContextOverride === false) flags.push('--no-context-override')
+  return `verifyx comments ${flags.join(' ')}`
+}
+
+/** A non-default comment choice must be recorded, even under defaults-only, as a verify:comments override. */
+function commentsCustomised(opts: InitOptions): boolean {
+  return opts.commentScope === 'all' || !!opts.commentBlockAll || opts.commentContextOverride === false
 }
 
 /** Pure scaffolding step: write package.json scripts + agent files, and report the devDeps to install. */
@@ -32,15 +60,25 @@ export function applyInit(opts: InitOptions): InitResult {
     const check = getCheck(name)
     if (!check) continue
     if (check.scaffold.devDeps) devDeps.push(...check.scaffold.devDeps)
-    if (!opts.defaultsOnly) scripts[`verify:${name}`] = check.scaffold.script
+    if (!opts.defaultsOnly) scripts[`verify:${name}`] = name === 'comments' ? commentsScript(opts) : check.scaffold.script
+  }
+
+  // Record non-default comment choice as a verify:comments override
+  if (opts.defaultsOnly && opts.checks.includes('comments') && commentsCustomised(opts)) {
+    scripts['verify:comments'] = commentsScript(opts)
   }
 
   // Defaults-only wires the top `verify` script to `verifyx all` so it runs every built-in with no verify:* list.
   const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts, opts.defaultsOnly ? 'verifyx all' : 'verifyx')
 
-  const agentFiles = writeAgentFiles(opts.cwd, opts.targets)
+  // Claude Code loads settings only from its launch dir, so we attach to the nearest existing .claude
+  const rootDir = resolveClaudeDir(opts.cwd, opts.claudeDir)
+  const agentFiles = writeAgentFiles(rootDir, opts.targets)
 
-  // context: with unused-code selected, teach knip to ignore the other external tools verifyx runs at runtime.
+  // The PostToolUse hook is Claude-specific; other agents have no universal edit-time equivalent.
+  if (opts.commentHook && opts.targets.includes('claude')) ensureClaudeHook(rootDir, agentFiles)
+
+  // Teach knip to ignore the other external tools verifyx runs at runtime.
   if (opts.checks.includes('unused-code')) {
     const toolDeps = opts.checks
       .map(getCheck)
@@ -50,5 +88,5 @@ export function applyInit(opts: InitOptions): InitResult {
     ensureKnipIgnores(opts.cwd, [...new Set(toolDeps)], agentFiles)
   }
 
-  return { addedScripts, devDeps: [...new Set(devDeps)], agentFiles }
+  return { addedScripts, devDeps: [...new Set(devDeps)], agentFiles, rootDir }
 }

@@ -114,18 +114,18 @@ Flags on the bare `verifyx` command:
 
 ## Built-in checks
 
-| Check               | Kind     | What it catches                                                                                                                                                                                                                                                       |
-| ------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                                                           |
-| `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to also fail any comment on a changed line (vs `HEAD` locally, the PR base in CI). |
-| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                                            |
-| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                                                      |
-| `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                                                 |
-| `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                                                   |
-| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                                                       |
-| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                                                    |
-| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                                             |
-| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                                                  |
+| Check               | Kind     | What it catches                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `complexity`        | native   | Maintainability-index gate (cyclomatic complexity + Halstead volume + SLOC). Fails files below a threshold.                                                                                                                                                                                                                                                         |
+| `comments`          | native   | Flags comment blocks taller than `--max-lines` (default 2), plus **session narration** and high **comment density** on changed lines (both on by default), to push for self-documenting code. JSDoc and `context:`-prefixed blocks are always allowed. Add `--block-new-comments` to fail _every_ comment on a changed line (vs `HEAD` locally, the PR base in CI). |
+| `hardcoded-colors`  | native   | Literal hex / `0x` colour values in source (cross-platform; suggests using design tokens).                                                                                                                                                                                                                                                                          |
+| `forbidden-strings` | native   | Disallowed JSON config values, from rules in your verify config.                                                                                                                                                                                                                                                                                                    |
+| `lint`              | external | Linting; auto-fixes locally, checks in CI ([oxlint](https://oxc.rs)).                                                                                                                                                                                                                                                                                               |
+| `format`            | external | Formatting; writes locally, checks in CI ([oxfmt](https://oxc.rs)).                                                                                                                                                                                                                                                                                                 |
+| `check-types`       | external | TypeScript type check (`tsc --noEmit`); skips when there is no `tsconfig.json`.                                                                                                                                                                                                                                                                                     |
+| `unused-code`       | external | Unused files, exports and dependencies ([knip](https://knip.dev)).                                                                                                                                                                                                                                                                                                  |
+| `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                                                                                                                                           |
+| `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                                                                                                                                                |
 
 External checks shell out to their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
@@ -170,25 +170,69 @@ verifyx comments --max-lines 2 --pushback "src/**/*.ts"
 
 Capable coding models (Opus 4.8 very much included) love to narrate their work: multi-line comment blocks explaining _what_ the code does rather than _why_. They add little value, drift out of sync as the code changes (and a later reader, human or LLM, may trust the stale comment over the code), and quietly grow the surface area you have to maintain. By default this check pushes back on exactly that, flagging any comment block taller than `--max-lines` (default 2) so the pressure is on the code to document itself.
 
-- `[pattern]`: glob, directory, or file to scan.
+The check has two orthogonal axes. **Scope** decides which comments are candidates — `diff` (only comments on changed lines; the default) or `all` (every comment in the matched files). **Strictness** decides what fails within that scope — the heuristics below (default), or `--block-all`, which fails _every_ comment in scope.
+
+- `[pattern]`: glob, directory, or file to scan (used by `--scope all`).
+- `--scope <diff|all>`: judge only changed lines (default) or the whole codebase.
 - `--max-lines <n>`: fail on comment blocks longer than `n` lines (default 2).
 - `--pushback`: reframe the failure message as back-pressure aimed at an AI agent (see below).
 - `--warn`: report the long-block violations without failing the run.
-- `--block-new-comments`: also fail on any comment on a changed line (vs `HEAD` locally, the PR base in CI; see below).
-- `--ignore <glob>`: exclude files (repeatable; the `--block-new-comments` gate also reads `comments.ignore` from your [verify config](#configuration)).
+- `--no-narration`: turn off the session-narration gate (on by default; see below).
+- `--no-context-override`: stop treating `context:`-prefixed comments as exempt — a stricter stance, or to drive a cleanup of existing `context:` use.
+- `--comment-density <pct>`: the comment share (0–1) that fails a file (default `0.3`; `0` disables).
+- `--min-added-lines <n>`: skip the density gate when fewer than `n` lines are in scope (default 10).
+- `--block-all`: fail _every_ non-exempt comment in scope — the strictest gate; supersedes the heuristics.
+- `--block-new-comments`: alias for `--scope diff --block-all` (fail every comment on a changed line).
+- `--ignore <glob>`: exclude files (repeatable; also read from `comments.ignore` in your [verify config](#configuration)).
 
-**`--pushback` is the clever bit.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider and remove the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it stops agents silencing the check far more reliably than a plain error does.
+Three heuristics run by default within the scope:
 
-If you want to go further and block **new** comments outright, override the `verify:comments` script and add `--block-new-comments`. That turns on a stricter, diff-based gate on top of the long-block check: any comment sitting on a changed line fails, whether you added or merely edited it. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
+- **Long blocks** — a run of comment lines (or a `/* … */` block) taller than `--max-lines`.
+- **Narration** — comments that think out loud or restate _what_ the next line does (`// let me add the handler`, `// as requested`, `// this function returns the total`), plus LLM punctuation tells (em-dashes and curly quotes, which generated comments emit far more than hand-typed ones).
+- **Density** — a file where comments make up too large a share of the lines in scope (default 30%, once at least 10 lines are in scope). A change that _removes_ at least as many comment lines as it adds is never flagged — a trim can't be adding bloat.
 
-The "changed lines" are resolved per environment so the gate works the same locally and in CI. Locally it diffs the working tree against `HEAD` (your uncommitted changes). In CI (`CI` set) a clean checkout has nothing uncommitted, so it diffs against the **merge base with the PR base branch** instead, read from `GITHUB_BASE_REF` (GitHub Actions). Set `VERIFY_DIFF_BASE` to a ref to override the base explicitly; if no base can be resolved it falls back to `HEAD`. For CI, make sure the base branch is fetched (`actions/checkout` with `fetch-depth: 0`), or the merge base won't be found and the gate silently passes.
+The default `diff` scope means the heuristics judge only what a change introduces, never legacy comments — so you can adopt the check on an existing repo without a cleanup first. Use `--scope all` for a full-codebase audit. All gates honour the same escape hatches (JSDoc, `context:`, machine directives); tune or disable them per repo via [verify config](#configuration).
 
-Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`) is always allowed, and prefixing a comment's first line with `context:` marks it as durable context the code itself can't express:
+**`--pushback` gives stronger back-pressure.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider more often and removes the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it we found it stops agents silencing the check more reliably than a plain error does.
+
+If you want to go further and block comments outright, add `--block-all`: every non-exempt comment in scope fails, not just the heuristic hits. Pair it with the scope you want — `--scope diff --block-all` (the `--block-new-comments` alias) fails any comment on a changed line, while `--scope all --block-all` is a zero-comment policy across the codebase. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
+
+Under the default `diff` scope, the "changed lines" are resolved per environment so the gate works the same locally and in CI. Locally it diffs the working tree against `HEAD` (your uncommitted changes). In CI (`CI` set) a clean checkout has nothing uncommitted, so it diffs against the **merge base with the PR base branch** instead, read from `GITHUB_BASE_REF` (GitHub Actions). Set `VERIFY_DIFF_BASE` to a ref to override the base explicitly; if no base can be resolved it falls back to `HEAD`. For CI, make sure the base branch is fetched (`actions/checkout` with `fetch-depth: 0`), or the merge base won't be found and the gate silently passes.
+
+Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`) is always allowed, and prefixing a comment's first line with `context:` marks it as durable context the code itself can't express — the kind of constraint a reader would otherwise "fix" and break, where no rename or refactor would carry the _why_:
 
 ```ts
-// context: the upstream API returns seconds, not milliseconds, so do not "fix" this
-const timeoutMs = timeout * 1000
+// context: keep this sequential; the gateway 429s on concurrent calls, so Promise.all here breaks it.
+for (const id of ids) await fetchOne(id)
 ```
+
+**Opting out of `context:`.** For a stricter stance — or to drive a cleanup of existing `context:` comments — pass `--no-context-override` (or set `comments.contextOverride: false` in your [verify config](#configuration)). `context:` comments are then judged like any other; JSDoc and machine directives stay exempt. Because `context:` no longer offers an escape, this also removes the one sanctioned way to keep a flagged comment (and the `--pushback` message drops its "prefix with `context:`" framing accordingly), so use it when you genuinely want the gate at its strictest. Combined with `--block-all`, this is a **no-comments-at-all, JSDoc-only** policy — `verifyx init` offers it directly as its strictest comment option (or `--comment-strict`), baking `--block-all --no-context-override` into the scaffolded `verify:comments` script.
+
+#### Edit-time hook (Claude PostToolUse)
+
+The `comments` check runs at verify/CI time — the end of a task. To close the loop tighter, `verifyx init` can also register an **edit-time gate** as a Claude Code [PostToolUse hook](https://code.claude.com/docs/en/hooks), so the same rules fire the moment an agent writes a file:
+
+```jsonc
+// .claude/settings.json (added by `verifyx init`; opt out with --no-comment-hook)
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx verifyx comments-hook" }],
+      },
+    ],
+  },
+}
+```
+
+`verifyx comments-hook` reads the tool payload on stdin, scans only the text that edit introduced (no git needed), and on a long block, narration, or dense comments writes back-pressure to stderr and exits `2` — which Claude surfaces to the agent in the same turn, so it revises before the code ever reaches you. The hook is always diff-scoped (it only sees the edit), and Claude-specific (other agents have no universal edit-time equivalent); those rely on the verify/CI check and the `prune-comments` skill.
+
+> **Monorepos.** Claude Code loads `.claude/settings.json` only from the directory it is _launched_ from — it does not walk up or inherit. `verifyx init` writes the hook (and the skills, rules, and `CLAUDE.md` pointer) to the **nearest existing `.claude`** — your cwd if it has one, otherwise the closest ancestor within a few levels, never past the git root — and prints where it landed. Run `init` from (or point `--claude-dir` at) the directory you launch Claude from, so the hook actually fires.
+
+#### `prune-comments` skill + comment rule
+
+`verifyx init` also drops a **`prune-comments`** skill and a **`comments-only-when-non-obvious`** rule (`.claude/rules` + `.agent-skills/rules`) — the remediation companion to the gate, with explicit keep/delete criteria and worked examples. Ask an agent to "prune comments" and it runs `verifyx comments` over the diff, then applies the rule to clean up low-value comments. To sweep the **whole codebase** rather than just the current diff, it runs `verifyx comments --scope all`.
 
 ### `hardcoded-colors`
 
@@ -271,7 +315,15 @@ The **native** checks that take persistent settings read them from a `verify.con
 ```jsonc
 {
   "verify": {
-    "comments": { "ignore": ["**/*.generated.ts"] },
+    "comments": {
+      "ignore": ["**/*.generated.ts"],
+      "scope": "diff",
+      "blockAll": false,
+      "narration": true,
+      "density": 0.3,
+      "minAddedLines": 10,
+      "contextOverride": true,
+    },
     "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
     "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
   },
@@ -312,7 +364,10 @@ Every export is available from the package root:
 import { analyzeComplexity, getCheck, runAll } from '@makerx/verify'
 
 // Run the maintainability analysis directly.
-const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
+const { failing } = analyzeComplexity({
+  pattern: 'src/**/*.ts',
+  threshold: 50,
+})
 
 // Run any single check by name, including the ones that shell out to an external tool.
 const lint = await getCheck('lint')?.runDefault()

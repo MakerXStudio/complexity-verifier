@@ -1,4 +1,3 @@
-import fs from 'node:fs'
 import path from 'node:path'
 
 import ts from 'typescript'
@@ -58,8 +57,7 @@ function scanYamlComments(content: string): ScannedComment[] {
   return out
 }
 
-/** Extract every comment (with its 1-based line) from a source file, dispatching on extension. */
-export function scanFileComments(file: string): ScannedComment[] {
-  const content = fs.readFileSync(file, 'utf-8')
+/** Extract every comment (with its 1-based line) from source text, dispatching on the file's extension. */
+export function scanComments(file: string, content: string): ScannedComment[] {
   return isYamlFile(file) ? scanYamlComments(content) : scanCodeComments(file, content)
 }

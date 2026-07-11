@@ -9,7 +9,21 @@ export type ForbiddenStringsRule = {
 }
 
 export type VerifyConfig = {
-  comments?: { ignore?: string[] }
+  comments?: {
+    ignore?: string[]
+    /** Which comments the gates judge: `diff` (changed lines only) or `all` (whole codebase). Default `diff`. */
+    scope?: 'diff' | 'all'
+    /** Fail every comment in scope, not just heuristic hits. Default false. */
+    blockAll?: boolean
+    /** Flag session-narration comments. Default true. */
+    narration?: boolean
+    /** Comment-density ratio (0–1) that fails a file; `false`/`0` disables. Default 0.3. */
+    density?: number | false
+    /** Minimum added/scanned lines before density applies. Default 10. */
+    minAddedLines?: number
+    /** Honour the `context:` override (those comments stay exempt). Default true; set false for a stricter gate / cleanup. */
+    contextOverride?: boolean
+  }
   hardcodedColors?: { ignore?: string[]; root?: string }
   forbiddenStrings?: ForbiddenStringsRule[]
 }

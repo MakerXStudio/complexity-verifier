@@ -34,24 +34,54 @@ type InitCliOptions = {
   select: string[]
   claude?: boolean
   agents?: boolean
+  commentHook?: boolean
+  claudeDir?: string
+  commentScope?: string
+  commentBlockAll?: boolean
+  commentStrict?: boolean
 }
 
-type Selections = { checks: string[]; targets: AgentTarget[]; defaultsOnly: boolean }
+type CommentScope = 'diff' | 'all'
+type CommentChoices = { commentScope: CommentScope; commentBlockAll: boolean; commentContextOverride: boolean }
+type Selections = {
+  checks: string[]
+  targets: AgentTarget[]
+  defaultsOnly: boolean
+  commentHook: boolean
+} & CommentChoices
 
-async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
-  const nonInteractive = !!opts.yes || !process.stdin.isTTY
-  if (nonInteractive) {
-    const targets: AgentTarget[] = []
-    if (opts.claude !== false) targets.push('claude')
-    if (opts.agents) targets.push('agents')
-    return {
-      checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
-      targets,
-      defaultsOnly: !!opts.defaultsOnly,
-    }
+const NO_COMMENT_CHOICES: CommentChoices = { commentScope: 'diff', commentBlockAll: false, commentContextOverride: true }
+
+async function askCommentOptions(): Promise<CommentChoices> {
+  const commentScope = (await ask<string>('select', 'Comments — which comments should the check gate?', [
+    { name: 'diff', message: 'Changed lines only (gate new code, skip legacy)', enabled: true },
+    { name: 'all', message: 'The whole codebase' },
+  ])) as CommentScope
+  const strictness = await ask<string>('select', 'Comments — how strict?', [
+    { name: 'heuristics', message: 'Heuristics: long blocks, narration, density', enabled: true },
+    { name: 'blockAll', message: 'Block every comment in scope (JSDoc + context: still allowed)' },
+    { name: 'strict', message: 'Strict: no comments at all — only JSDoc allowed' },
+  ])
+  return { commentScope, commentBlockAll: strictness !== 'heuristics', commentContextOverride: strictness !== 'strict' }
+}
+
+function nonInteractiveSelections(opts: InitCliOptions): Selections {
+  const targets: AgentTarget[] = []
+  if (opts.claude !== false) targets.push('claude')
+  if (opts.agents) targets.push('agents')
+  return {
+    checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
+    targets,
+    defaultsOnly: !!opts.defaultsOnly,
+    commentHook: opts.commentHook !== false,
+    commentScope: opts.commentScope === 'all' ? 'all' : 'diff',
+    // --comment-strict is the "no comments, JSDoc only" preset: block every comment and drop the context: override.
+    commentBlockAll: !!opts.commentBlockAll || !!opts.commentStrict,
+    commentContextOverride: !opts.commentStrict,
   }
+}
 
-  // context: an up-front choice — run everything with defaults (verifyx all, no verify:* scripts), or hand-pick checks.
+async function interactiveSelections(): Promise<Selections> {
   const mode = await ask<string>('select', 'How should verify run?', [
     { name: 'defaults', message: 'Run all built-in checks (verifyx all) with default options', enabled: true },
     { name: 'pick', message: 'Pick specific checks to wire up as verify:* scripts' },
@@ -70,7 +100,22 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
     { name: 'claude', message: 'Claude (.claude/skills + CLAUDE.md)', enabled: true },
     { name: 'agents', message: 'Other agents (.agent-skills + AGENTS.md)', enabled: false },
   ])
-  return { checks, targets, defaultsOnly }
+
+  // The edit-time hook is Claude-specific; only offer it when Claude is a target.
+  const commentHook = targets.includes('claude')
+    ? (await ask<string>('select', 'Enable the edit-time comment hook (Claude PostToolUse)?', [
+        { name: 'yes', message: 'Yes — flag low-value comments the moment a file is edited', enabled: true },
+        { name: 'no', message: 'No — rely on the verify/CI comments check only' },
+      ])) === 'yes'
+    : false
+
+  const comments = checks.includes('comments') ? await askCommentOptions() : NO_COMMENT_CHOICES
+  return { checks, targets, defaultsOnly, commentHook, ...comments }
+}
+
+async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
+  const nonInteractive = !!opts.yes || !process.stdin.isTTY
+  return nonInteractive ? nonInteractiveSelections(opts) : interactiveSelections()
 }
 
 function report(result: InitResult, defaultsOnly: boolean): void {
@@ -81,6 +126,13 @@ function report(result: InitResult, defaultsOnly: boolean): void {
   for (const file of result.agentFiles) {
     if (file.action === 'unchanged') continue
     console.log(`  ${ACTION_MARK[file.action]} ${file.path} (${file.action})`)
+  }
+  if (result.rootDir !== process.cwd() && result.agentFiles.length > 0) {
+    console.log(
+      color.yellow(
+        `\nAgent files were written to ${result.rootDir} (nearest existing .claude). Claude Code only loads them when launched from there — pass --claude-dir to target a different directory.`,
+      ),
+    )
   }
 }
 
@@ -114,11 +166,27 @@ export function registerInit(program: Command): void {
     .option('--select <name>', 'preselect a check by name (repeatable, non-interactive)', collect, [])
     .option('--no-claude', 'do not write .claude/ files (non-interactive)')
     .option('--agents', 'also write .agent-skills/ files (non-interactive)')
+    .option('--no-comment-hook', 'do not register the edit-time comment PostToolUse hook')
+    .option('--claude-dir <path>', 'directory to write .claude/.agent-skills into (default: nearest existing .claude, else cwd)')
+    .option('--comment-scope <scope>', 'comments check scope baked into verify:comments: diff (default) or all')
+    .option('--comment-block-all', 'bake --block-all into verify:comments (fail every comment in scope)')
+    .option('--comment-strict', 'strictest: no comments, only JSDoc (bakes --block-all --no-context-override)')
     .action(async (opts: InitCliOptions) => {
       const cwd = process.cwd()
-      const { checks, targets, defaultsOnly } = await resolveSelections(opts)
+      const { checks, targets, defaultsOnly, commentHook, commentScope, commentBlockAll, commentContextOverride } =
+        await resolveSelections(opts)
 
-      const result = applyInit({ cwd, checks, targets, defaultsOnly })
+      const result = applyInit({
+        cwd,
+        checks,
+        targets,
+        defaultsOnly,
+        commentHook,
+        claudeDir: opts.claudeDir,
+        commentScope,
+        commentBlockAll,
+        commentContextOverride,
+      })
       report(result, defaultsOnly)
 
       if (result.devDeps.length > 0) {

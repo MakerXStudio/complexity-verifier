@@ -28,17 +28,37 @@ export function registerChecks(program: Command): void {
 
   program
     .command('comments')
-    .description('Flag long comment blocks (JSDoc / context: exempt); --block-new-comments also fails comments on changed lines')
-    .argument('[pattern]', 'glob, directory, or file to scan')
+    .description(
+      'Flag low-value comments: long blocks + narration/density (JSDoc / context: exempt). --scope diff|all sets whether it judges changed lines or the whole codebase; --block-all fails every comment in scope',
+    )
+    .argument('[pattern]', 'glob, directory, or file to scan (used by --scope all)')
     .option('--max-lines <n>', 'maximum comment-block length', Number)
     .option('--pushback', 'add AI back-pressure framing to the failure message')
     .option('--warn', 'report without failing the run')
-    .option('--block-new-comments', 'also fail on any comment on a line changed against HEAD')
+    .option('--scope <scope>', 'which comments to judge: diff (changed lines) or all (whole codebase)')
+    .option('--block-all', 'fail every non-exempt comment in scope, not just heuristic hits')
+    .option('--block-new-comments', 'alias for --scope diff --block-all')
+    .option('--no-narration', 'do not flag session-narration comments')
+    .option('--no-context-override', 'disable the `context:` override, so those comments are no longer exempt (stricter gate / cleanup)')
+    .option('--comment-density <pct>', 'comment-density ratio (0–1) that fails a file; 0 disables', Number)
+    .option('--min-added-lines <n>', 'minimum lines in scope before density applies', Number)
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
     .action(
       (
         pattern: string | undefined,
-        opts: { maxLines?: number; pushback?: boolean; warn?: boolean; blockNewComments?: boolean; ignore: string[] },
+        opts: {
+          maxLines?: number
+          pushback?: boolean
+          warn?: boolean
+          scope?: string
+          blockAll?: boolean
+          blockNewComments?: boolean
+          narration?: boolean
+          contextOverride?: boolean
+          commentDensity?: number
+          minAddedLines?: number
+          ignore: string[]
+        },
       ) => {
         finish(
           runComments({
@@ -46,7 +66,13 @@ export function registerChecks(program: Command): void {
             maxLines: opts.maxLines,
             pushback: opts.pushback,
             warn: opts.warn,
+            scope: opts.scope === 'all' ? 'all' : opts.scope === 'diff' ? 'diff' : undefined,
+            blockAll: opts.blockAll,
             blockNewComments: opts.blockNewComments,
+            narration: opts.narration === false ? false : undefined,
+            contextOverride: opts.contextOverride === false ? false : undefined,
+            density: opts.commentDensity,
+            minAddedLines: opts.minAddedLines,
             ignore: opts.ignore,
           }).ok,
         )
