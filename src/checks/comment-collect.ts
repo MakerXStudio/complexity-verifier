@@ -25,17 +25,17 @@ const blockIntersects = (block: CommentBlockViolation, changed: ReadonlySet<numb
 
 const sortComments = (comments: NewComment[]): NewComment[] => comments.sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line)
 
-// context: scope `all` judges every comment in the matched files — the whole-codebase audit / prune surface.
-export function gatherAllComments(files: readonly string[], maxLines: number): CommentCandidates {
+// scope `all` judges every comment in the matched files: the whole-codebase audit / prune surface.
+export function gatherAllComments(files: readonly string[], maxLines: number, contextOverride = true): CommentCandidates {
   const blocks: CommentBlockViolation[] = []
   const comments: NewComment[] = []
   const perFile = new Map<string, FileCommentCounts>()
   for (const file of files) {
     const content = fs.readFileSync(file, 'utf-8')
-    blocks.push(...findLongCommentBlocksInContent(file, content, maxLines))
+    blocks.push(...findLongCommentBlocksInContent(file, content, maxLines, contextOverride))
     let commentLines = 0
     for (const c of scanComments(file, content)) {
-      if (isDiffExempt(c.text)) continue
+      if (isDiffExempt(c.text, contextOverride)) continue
       commentLines += commentSpan(c.text)
       comments.push({ file, line: c.line, text: toSingleLine(c.text) })
     }
@@ -45,8 +45,8 @@ export function gatherAllComments(files: readonly string[], maxLines: number): C
   return { blocks, comments: sortComments(comments), perFile }
 }
 
-// context: scope `diff` judges only comments touching changed lines (vs the diff base) — one pass feeds every gate.
-export function gatherDiffComments(ignoreGlobs: readonly string[], maxLines: number): CommentCandidates {
+// scope `diff` judges only comments touching changed lines (vs the diff base); one pass feeds every gate.
+export function gatherDiffComments(ignoreGlobs: readonly string[], maxLines: number, contextOverride = true): CommentCandidates {
   const diff = gitDiffAgainstBase()
   const added = parseDiffAddedLines(diff)
   const removedByFile = parseDiffRemovedLines(diff)
@@ -57,12 +57,12 @@ export function gatherDiffComments(ignoreGlobs: readonly string[], maxLines: num
     if (!shouldScan(file, ignoreGlobs)) continue
     const content = fs.readFileSync(file, 'utf-8')
     const fileLines = content.split('\n')
-    for (const block of findLongCommentBlocksInContent(file, content, maxLines)) {
+    for (const block of findLongCommentBlocksInContent(file, content, maxLines, contextOverride)) {
       if (blockIntersects(block, changed)) blocks.push(block)
     }
     let commentLines = 0
     for (const c of scanComments(file, content)) {
-      if (isDiffExempt(c.text)) continue
+      if (isDiffExempt(c.text, contextOverride)) continue
       const span = commentSpan(c.text)
       // context: a comment is in scope when any of its lines changed, not only its opening line, so an edit to a
       // context: block comment's body still surfaces it to the narration and block-all gates.

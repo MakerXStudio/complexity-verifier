@@ -178,6 +178,7 @@ The check has two orthogonal axes. **Scope** decides which comments are candidat
 - `--pushback`: reframe the failure message as back-pressure aimed at an AI agent (see below).
 - `--warn`: report the long-block violations without failing the run.
 - `--no-narration`: turn off the session-narration gate (on by default; see below).
+- `--no-context-override`: stop treating `context:`-prefixed comments as exempt — a stricter stance, or to drive a cleanup of existing `context:` use.
 - `--comment-density <pct>`: the comment share (0–1) that fails a file (default `0.3`; `0` disables).
 - `--min-added-lines <n>`: skip the density gate when fewer than `n` lines are in scope (default 10).
 - `--block-all`: fail _every_ non-exempt comment in scope — the strictest gate; supersedes the heuristics.
@@ -192,18 +193,20 @@ Three heuristics run by default within the scope:
 
 The default `diff` scope means the heuristics judge only what a change introduces, never legacy comments — so you can adopt the check on an existing repo without a cleanup first. Use `--scope all` for a full-codebase audit. All gates honour the same escape hatches (JSDoc, `context:`, machine directives); tune or disable them per repo via [verify config](#configuration).
 
-**`--pushback` is the clever bit.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider and remove the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it stops agents silencing the check far more reliably than a plain error does.
+**`--pushback` gives stronger back-pressure.** An AI agent that hits a failing check will often take the path of least resistance and just delete or weaken the check to make the run pass. So rather than a dry error, the pushback message tells the agent that the _only_ sanctioned way to keep the comment is to prefix it with `context:`, and that doing so **pages a human to approve it**. Confronted with a real person's time on the line, the agent tends to reconsider more often and removes the low-value comment instead of gaming the gate. It is a small piece of prompt-engineering baked into a lint failure, and in practice it we found it stops agents silencing the check more reliably than a plain error does.
 
 If you want to go further and block comments outright, add `--block-all`: every non-exempt comment in scope fails, not just the heuristic hits. Pair it with the scope you want — `--scope diff --block-all` (the `--block-new-comments` alias) fails any comment on a changed line, while `--scope all --block-all` is a zero-comment policy across the codebase. Machine directives (`eslint-disable`, `@ts-expect-error`, and friends) stay exempt, as does anything marked `context:`.
 
 Under the default `diff` scope, the "changed lines" are resolved per environment so the gate works the same locally and in CI. Locally it diffs the working tree against `HEAD` (your uncommitted changes). In CI (`CI` set) a clean checkout has nothing uncommitted, so it diffs against the **merge base with the PR base branch** instead, read from `GITHUB_BASE_REF` (GitHub Actions). Set `VERIFY_DIFF_BASE` to a ref to override the base explicitly; if no base can be resolved it falls back to `HEAD`. For CI, make sure the base branch is fetched (`actions/checkout` with `fetch-depth: 0`), or the merge base won't be found and the gate silently passes.
 
-Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`) is always allowed, and prefixing a comment's first line with `context:` marks it as durable context the code itself can't express:
+Two escape hatches keep genuinely useful comments alive. **JSDoc** (`/** … */`) is always allowed, and prefixing a comment's first line with `context:` marks it as durable context the code itself can't express — the kind of constraint a reader would otherwise "fix" and break, where no rename or refactor would carry the _why_:
 
 ```ts
-// context: the upstream API returns seconds, not milliseconds, so do not "fix" this
-const timeoutMs = timeout * 1000
+// context: keep this sequential; the gateway 429s on concurrent calls, so Promise.all here breaks it.
+for (const id of ids) await fetchOne(id)
 ```
+
+**Opting out of `context:`.** For a stricter stance — or to drive a cleanup of existing `context:` comments — pass `--no-context-override` (or set `comments.contextOverride: false` in your [verify config](#configuration)). `context:` comments are then judged like any other; JSDoc and machine directives stay exempt. Because `context:` no longer offers an escape, this also removes the one sanctioned way to keep a flagged comment (and the `--pushback` message drops its "prefix with `context:`" framing accordingly), so use it when you genuinely want the gate at its strictest. Combined with `--block-all`, this is a **no-comments-at-all, JSDoc-only** policy — `verifyx init` offers it directly as its strictest comment option (or `--comment-strict`), baking `--block-all --no-context-override` into the scaffolded `verify:comments` script.
 
 #### Edit-time hook (Claude PostToolUse)
 
@@ -213,7 +216,12 @@ The `comments` check runs at verify/CI time — the end of a task. To close the 
 // .claude/settings.json (added by `verifyx init`; opt out with --no-comment-hook)
 {
   "hooks": {
-    "PostToolUse": [{ "matcher": "Edit|Write|MultiEdit", "hooks": [{ "type": "command", "command": "npx verifyx comments-hook" }] }],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{ "type": "command", "command": "npx verifyx comments-hook" }],
+      },
+    ],
   },
 }
 ```
@@ -224,7 +232,7 @@ The `comments` check runs at verify/CI time — the end of a task. To close the 
 
 #### `prune-comments` skill + comment rule
 
-`verifyx init` also drops a **`prune-comments`** skill and a **`comments-only-when-non-obvious`** rule (`.claude/rules` + `.agent-skills/rules`) — the remediation companion to the gate, with explicit keep/delete criteria and worked examples. Ask an agent to "prune comments" and it runs `verifyx comments` over the diff, then applies the rule to clean up low-value comments (with `context:` as the sanctioned escape hatch). To sweep the **whole codebase** rather than just a change, it runs `verifyx comments --scope all`.
+`verifyx init` also drops a **`prune-comments`** skill and a **`comments-only-when-non-obvious`** rule (`.claude/rules` + `.agent-skills/rules`) — the remediation companion to the gate, with explicit keep/delete criteria and worked examples. Ask an agent to "prune comments" and it runs `verifyx comments` over the diff, then applies the rule to clean up low-value comments. To sweep the **whole codebase** rather than just the current diff, it runs `verifyx comments --scope all`.
 
 ### `hardcoded-colors`
 
@@ -314,6 +322,7 @@ The **native** checks that take persistent settings read them from a `verify.con
       "narration": true,
       "density": 0.3,
       "minAddedLines": 10,
+      "contextOverride": true,
     },
     "hardcodedColors": { "root": "src", "ignore": ["**/tokens.ts"] },
     "forbiddenStrings": [{ "file": "app.json", "paths": ["env.LOG_LEVEL"], "disallowed": "debug" }],
@@ -355,7 +364,10 @@ Every export is available from the package root:
 import { analyzeComplexity, getCheck, runAll } from '@makerx/verify'
 
 // Run the maintainability analysis directly.
-const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
+const { failing } = analyzeComplexity({
+  pattern: 'src/**/*.ts',
+  threshold: 50,
+})
 
 // Run any single check by name, including the ones that shell out to an external tool.
 const lint = await getCheck('lint')?.runDefault()

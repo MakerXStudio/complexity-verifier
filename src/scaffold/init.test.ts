@@ -66,6 +66,11 @@ describe('applyInit', () => {
     expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback')
   })
 
+  it('bakes the strict "no comments, JSDoc only" preset into verify:comments', () => {
+    applyInit({ cwd: dir, checks: ['comments'], targets: [], defaultsOnly: false, commentBlockAll: true, commentContextOverride: false })
+    expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback --block-all --no-context-override')
+  })
+
   it('emits a verify:comments override under defaults-only only when a non-default comment option is chosen', () => {
     applyInit({ cwd: dir, checks: CHECKS.map((c) => c.name), targets: [], defaultsOnly: true, commentBlockAll: true })
     expect(readScripts()['verify:comments']).toBe('verifyx comments --pushback --block-all')

@@ -15,8 +15,7 @@ const NARRATION_PATTERNS: RegExp[] = [
   /\b(?:step \d|todo:|fixme:)/i,
 ]
 
-// context: em-dash and curly quotes are high-precision LLM tells — models emit them freely, hand-typed code
-// comments rarely do. Borrowed from claude-comment-gate's H2 punctuation check.
+// context: em-dash and curly quotes are high-precision LLM tells — models emit them freely.
 const LLM_PUNCT_TELL = /[—‘’“”]/
 
 export type DensityViolation = {
@@ -30,9 +29,9 @@ export type DensityViolation = {
 }
 
 /** From comments in scope, return those whose text reads as session narration or carries an LLM punctuation tell. */
-export function findNarrationComments(comments: readonly NewComment[]): NewComment[] {
+export function findNarrationComments(comments: readonly NewComment[], contextOverride = true): NewComment[] {
   return comments.filter(
-    (c) => !isCommentExempt(c.text) && (NARRATION_PATTERNS.some((re) => re.test(c.text)) || LLM_PUNCT_TELL.test(c.text)),
+    (c) => !isCommentExempt(c.text, contextOverride) && (NARRATION_PATTERNS.some((re) => re.test(c.text)) || LLM_PUNCT_TELL.test(c.text)),
   )
 }
 

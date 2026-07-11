@@ -10,7 +10,8 @@ export type CommentBlockViolation = {
 
 // context: `context:` is the deliberate escape hatch — a human/AI marks a comment as durable
 // context (the "why") rather than implementation narration, and it is never flagged.
-function isContextExempt(firstLine: string): boolean {
+function isContextExempt(firstLine: string, contextOverride: boolean): boolean {
+  if (!contextOverride) return false
   const stripped = firstLine.replace(/^\s*(?:\/\/+|\/\*+|\*)\s*/, '')
   return stripped.toLowerCase().startsWith('context:')
 }
@@ -20,6 +21,7 @@ function consumeBlockComment(
   lines: readonly string[],
   start: number,
   maxLines: number,
+  contextOverride: boolean,
   out: CommentBlockViolation[],
 ): number {
   const isJsDoc = (lines[start] as string).trim().startsWith('/**')
@@ -27,7 +29,7 @@ function consumeBlockComment(
   while (end < lines.length && !(lines[end] as string).includes('*/')) end++
   const last = Math.min(end, lines.length - 1)
   const count = last - start + 1
-  if (!isJsDoc && !isContextExempt(lines[start] as string) && count > maxLines) {
+  if (!isJsDoc && !isContextExempt(lines[start] as string, contextOverride) && count > maxLines) {
     out.push({ file, line: start + 1, lines: count })
   }
   return last + 1
@@ -38,26 +40,27 @@ function consumeLineComments(
   lines: readonly string[],
   start: number,
   maxLines: number,
+  contextOverride: boolean,
   out: CommentBlockViolation[],
 ): number {
   let end = start
   while (end < lines.length && (lines[end] as string).trim().startsWith('//')) end++
   const count = end - start
-  if (!isContextExempt(lines[start] as string) && count > maxLines) {
+  if (!isContextExempt(lines[start] as string, contextOverride) && count > maxLines) {
     out.push({ file, line: start + 1, lines: count })
   }
   return end
 }
 
-function scanFile(file: string, content: string, maxLines: number, out: CommentBlockViolation[]): void {
+function scanFile(file: string, content: string, maxLines: number, contextOverride: boolean, out: CommentBlockViolation[]): void {
   const lines = content.split('\n')
   let i = 0
   while (i < lines.length) {
     const trimmed = (lines[i] as string).trim()
     if (trimmed.startsWith('/*')) {
-      i = consumeBlockComment(file, lines, i, maxLines, out)
+      i = consumeBlockComment(file, lines, i, maxLines, contextOverride, out)
     } else if (trimmed.startsWith('//')) {
-      i = consumeLineComments(file, lines, i, maxLines, out)
+      i = consumeLineComments(file, lines, i, maxLines, contextOverride, out)
     } else {
       i++
     }
@@ -65,9 +68,14 @@ function scanFile(file: string, content: string, maxLines: number, out: CommentB
 }
 
 /** Flag comment blocks longer than `maxLines` in a single file's `content` (see {@link findLongCommentBlocks}). */
-export function findLongCommentBlocksInContent(file: string, content: string, maxLines: number): CommentBlockViolation[] {
+export function findLongCommentBlocksInContent(
+  file: string,
+  content: string,
+  maxLines: number,
+  contextOverride = true,
+): CommentBlockViolation[] {
   const out: CommentBlockViolation[] = []
-  scanFile(file, content, maxLines, out)
+  scanFile(file, content, maxLines, contextOverride, out)
   return out
 }
 
@@ -79,7 +87,7 @@ export function findLongCommentBlocksInContent(file: string, content: string, ma
 export function findLongCommentBlocks(files: readonly string[], maxLines: number): CommentBlockViolation[] {
   const out: CommentBlockViolation[] = []
   for (const file of files) {
-    scanFile(file, fs.readFileSync(file, 'utf-8'), maxLines, out)
+    scanFile(file, fs.readFileSync(file, 'utf-8'), maxLines, true, out)
   }
   return out
 }

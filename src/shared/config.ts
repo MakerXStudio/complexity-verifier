@@ -21,6 +21,8 @@ export type VerifyConfig = {
     density?: number | false
     /** Minimum added/scanned lines before density applies. Default 10. */
     minAddedLines?: number
+    /** Honour the `context:` override (those comments stay exempt). Default true; set false for a stricter gate / cleanup. */
+    contextOverride?: boolean
   }
   hardcodedColors?: { ignore?: string[]; root?: string }
   forbiddenStrings?: ForbiddenStringsRule[]

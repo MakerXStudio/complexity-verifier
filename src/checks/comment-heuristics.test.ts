@@ -34,6 +34,13 @@ describe('findNarrationComments', () => {
     const tells = [comment('// wraps the call — then retries'), comment('// uses the “fast” path')]
     expect(findNarrationComments(tells)).toHaveLength(2)
   })
+
+  it('with allowContext false, stops exempting context: comments (machine directives still exempt)', () => {
+    const comments = [comment('// context: let me keep this durable note'), comment('// eslint-disable-next-line -- let me disable')]
+    const flagged = findNarrationComments(comments, false)
+    expect(flagged).toHaveLength(1)
+    expect(flagged[0]?.text).toContain('context:')
+  })
 })
 
 describe('findCommentDensity', () => {

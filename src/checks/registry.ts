@@ -20,12 +20,12 @@ function nativeCheck(name: string, description: string, recommended: boolean, ru
   }
 }
 
-// context: checks are named for their function, never the tool behind them (see each check's bin/devDeps).
+// Checks are named for their function, never the tool behind them (see each check's bin/devDeps).
 export const CHECKS: Check[] = [
   nativeCheck('complexity', 'Maintainability-index gate (cyclomatic + Halstead + SLOC)', true, () => runComplexity()),
   nativeCheck(
     'comments',
-    'Flag low-value comments — long blocks + narration/density (JSDoc / context: exempt); --scope diff|all, --block-all for a zero-comment gate',
+    'Flag low-value comments — long blocks + narration/density; --scope diff|all, --block-all for a zero-comment gate',
     true,
     () => runComments({ pushback: true }),
     'verifyx comments --pushback',

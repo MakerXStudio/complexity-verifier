@@ -7,8 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { gitDiffAgainstBase } from '../shared/git.ts'
 import { runComments } from './comments.ts'
 
-// context: the diff-scoped gates (narration/density/block-new) read git; mocking the diff keeps these tests
-// hermetic and lets each case craft the exact changed lines it needs.
 vi.mock('../shared/git.ts', () => ({ gitDiffAgainstBase: vi.fn(() => '') }))
 const mockDiff = (diff: string): void => {
   vi.mocked(gitDiffAgainstBase).mockReturnValue(diff)

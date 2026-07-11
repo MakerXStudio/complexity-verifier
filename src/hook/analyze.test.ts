@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { analyzeAddedComments, formatHookFeedback, hasFindings, type HookOptions } from './analyze.ts'
 
-const opts: HookOptions = { maxLines: 2, narration: true, density: 0.3, minAddedLines: 10, blockAll: false }
+const opts: HookOptions = { maxLines: 2, narration: true, density: 0.3, minAddedLines: 10, blockAll: false, contextOverride: true }
 
 describe('analyzeAddedComments', () => {
   it('flags a narration comment an edit introduced', () => {
@@ -39,13 +39,27 @@ describe('analyzeAddedComments', () => {
     expect(f.blocks).toEqual([])
     expect(hasFindings(f)).toBe(true)
   })
+
+  it('with contextOverride false, no longer exempts a context: comment', () => {
+    const text = '// context: let me keep this durable note\nconst x = 1'
+    expect(hasFindings(analyzeAddedComments({ file: 'a.ts', addedText: text }, opts))).toBe(false)
+    const strict = analyzeAddedComments({ file: 'a.ts', addedText: text }, { ...opts, contextOverride: false })
+    expect(strict.narration).toHaveLength(1)
+  })
 })
 
 describe('formatHookFeedback', () => {
-  it('names the file and includes the pushback', () => {
+  it('names the file and includes the context: pushback by default', () => {
     const f = analyzeAddedComments({ file: 'a.ts', addedText: '// let me do it\nconst x = 1' }, opts)
-    const msg = formatHookFeedback(f)
+    const msg = formatHookFeedback(f, true)
     expect(msg).toContain('a.ts')
     expect(msg).toContain('context:')
+  })
+
+  it('never mentions context: when the override is disabled', () => {
+    const f = analyzeAddedComments({ file: 'a.ts', addedText: '// let me do it\nconst x = 1' }, { ...opts, contextOverride: false })
+    const msg = formatHookFeedback(f, false)
+    expect(msg).not.toContain('context:')
+    expect(msg).toContain('strictest')
   })
 })

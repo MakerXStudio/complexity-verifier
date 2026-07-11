@@ -39,6 +39,7 @@ export function registerChecks(program: Command): void {
     .option('--block-all', 'fail every non-exempt comment in scope, not just heuristic hits')
     .option('--block-new-comments', 'alias for --scope diff --block-all')
     .option('--no-narration', 'do not flag session-narration comments')
+    .option('--no-context-override', 'disable the `context:` override, so those comments are no longer exempt (stricter gate / cleanup)')
     .option('--comment-density <pct>', 'comment-density ratio (0–1) that fails a file; 0 disables', Number)
     .option('--min-added-lines <n>', 'minimum lines in scope before density applies', Number)
     .option('--ignore <glob>', 'ignore glob (repeatable)', collect, [])
@@ -53,6 +54,7 @@ export function registerChecks(program: Command): void {
           blockAll?: boolean
           blockNewComments?: boolean
           narration?: boolean
+          contextOverride?: boolean
           commentDensity?: number
           minAddedLines?: number
           ignore: string[]
@@ -67,9 +69,8 @@ export function registerChecks(program: Command): void {
             scope: opts.scope === 'all' ? 'all' : opts.scope === 'diff' ? 'diff' : undefined,
             blockAll: opts.blockAll,
             blockNewComments: opts.blockNewComments,
-            // context: commander defaults --no-narration's value to true; forward it only when explicitly
-            // disabled so verify.config.json's `narration` stays authoritative when the flag is absent.
             narration: opts.narration === false ? false : undefined,
+            contextOverride: opts.contextOverride === false ? false : undefined,
             density: opts.commentDensity,
             minAddedLines: opts.minAddedLines,
             ignore: opts.ignore,

@@ -35,6 +35,7 @@ function resolveOptions(): { options: HookOptions; ignore: string[] } {
       density,
       minAddedLines: cfg.minAddedLines ?? DEFAULT_MIN_ADDED_LINES,
       blockAll: cfg.blockAll ?? false,
+      contextOverride: cfg.contextOverride ?? true,
     },
     ignore: cfg.ignore ?? [],
   }
@@ -58,7 +59,7 @@ export function registerCommentsHook(program: Command): void {
       const findings = analyzeAddedComments(target, options)
       if (!hasFindings(findings)) return
 
-      process.stderr.write(`${formatHookFeedback(findings)}\n`)
+      process.stderr.write(`${formatHookFeedback(findings, options.contextOverride)}\n`)
       process.exitCode = 2
     })
 }

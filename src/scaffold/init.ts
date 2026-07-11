@@ -24,6 +24,8 @@ export type InitOptions = {
   commentScope?: 'diff' | 'all'
   /** Bake `--block-all` into the scaffolded comments script (fail every comment in scope). Default false. */
   commentBlockAll?: boolean
+  /** Honour the `context:` override in the scaffolded script. Default true; false bakes `--no-context-override`. */
+  commentContextOverride?: boolean
 }
 
 export type InitResult = {
@@ -40,7 +42,13 @@ function commentsScript(opts: InitOptions): string {
   const flags = ['--pushback']
   if (opts.commentScope === 'all') flags.push('--scope all')
   if (opts.commentBlockAll) flags.push('--block-all')
+  if (opts.commentContextOverride === false) flags.push('--no-context-override')
   return `verifyx comments ${flags.join(' ')}`
+}
+
+/** A non-default comment choice must be recorded, even under defaults-only, as a verify:comments override. */
+function commentsCustomised(opts: InitOptions): boolean {
+  return opts.commentScope === 'all' || !!opts.commentBlockAll || opts.commentContextOverride === false
 }
 
 /** Pure scaffolding step: write package.json scripts + agent files, and report the devDeps to install. */
@@ -55,24 +63,22 @@ export function applyInit(opts: InitOptions): InitResult {
     if (!opts.defaultsOnly) scripts[`verify:${name}`] = name === 'comments' ? commentsScript(opts) : check.scaffold.script
   }
 
-  // context: even under defaults-only (no verify:* scripts) a non-default comment choice is emitted as a
-  // context: verify:comments override so `verifyx all` honours it; there's nowhere else to record the flags.
-  if (opts.defaultsOnly && opts.checks.includes('comments') && (opts.commentScope === 'all' || opts.commentBlockAll)) {
+  // Record non-default comment choice as a verify:comments override
+  if (opts.defaultsOnly && opts.checks.includes('comments') && commentsCustomised(opts)) {
     scripts['verify:comments'] = commentsScript(opts)
   }
 
   // Defaults-only wires the top `verify` script to `verifyx all` so it runs every built-in with no verify:* list.
   const addedScripts = addVerifyScripts(path.join(opts.cwd, 'package.json'), scripts, opts.defaultsOnly ? 'verifyx all' : 'verifyx')
 
-  // context: Claude Code loads settings only from its launch dir, so we attach to the nearest existing .claude
-  // context: (the likely launch root), never a parent that isn't already a Claude project. See resolveClaudeDir.
+  // Claude Code loads settings only from its launch dir, so we attach to the nearest existing .claude
   const rootDir = resolveClaudeDir(opts.cwd, opts.claudeDir)
   const agentFiles = writeAgentFiles(rootDir, opts.targets)
 
   // The PostToolUse hook is Claude-specific; other agents have no universal edit-time equivalent.
   if (opts.commentHook && opts.targets.includes('claude')) ensureClaudeHook(rootDir, agentFiles)
 
-  // context: with unused-code selected, teach knip to ignore the other external tools verifyx runs at runtime.
+  // Teach knip to ignore the other external tools verifyx runs at runtime.
   if (opts.checks.includes('unused-code')) {
     const toolDeps = opts.checks
       .map(getCheck)

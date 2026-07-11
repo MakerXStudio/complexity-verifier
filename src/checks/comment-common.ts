@@ -4,8 +4,7 @@ import { minimatch } from 'minimatch'
 
 const SCANNED_EXTENSIONS = ['.ts', '.tsx', '.cts', '.mts', '.js', '.jsx', '.mjs', '.cjs', '.yml', '.yaml']
 
-// context: machine directives steer tooling, not humans, so a changed line carrying one is never a "comment"
-// worth removing; `context:` is this project's durable-context escape hatch and is likewise exempt.
+// machine directives steer tooling, not humans, so a changed line carrying one is never a "comment"
 const MACHINE_DIRECTIVES = [
   'oxlint-disable',
   'oxlint-enable',
@@ -23,9 +22,10 @@ const MACHINE_DIRECTIVES = [
 
 export type NewComment = { file: string; line: number; text: string }
 
-export function isCommentExempt(text: string): boolean {
+export function isCommentExempt(text: string, contextOverride = true): boolean {
   const lower = text.toLowerCase()
   if (MACHINE_DIRECTIVES.some((d) => lower.includes(d))) return true
+  if (!contextOverride) return false
   const stripped = text.replace(/^\s*(?:\/\/+|\/\*+|\*|#)\s*/, '')
   return stripped.toLowerCase().startsWith('context:')
 }
@@ -34,14 +34,13 @@ export function isScannedExtension(file: string): boolean {
   return SCANNED_EXTENSIONS.some((ext) => file.endsWith(ext))
 }
 
-/** JSDoc (`/** … *\/`) is an always-allowed escape hatch, so the diff-scoped gates skip it like `context:`. */
+/** JSDoc (`/** … *\/`) is an always-allowed escape hatch. */
 function isJsDoc(text: string): boolean {
   return text.trimStart().startsWith('/**')
 }
 
-/** Exempt from the diff-scoped gates: machine directives, `context:` blocks, and JSDoc. */
-export function isDiffExempt(text: string): boolean {
-  return isCommentExempt(text) || isJsDoc(text)
+export function isDiffExempt(text: string, contextOverride = true): boolean {
+  return isCommentExempt(text, contextOverride) || isJsDoc(text)
 }
 
 export function shouldScan(file: string, ignoreGlobs: readonly string[]): boolean {
