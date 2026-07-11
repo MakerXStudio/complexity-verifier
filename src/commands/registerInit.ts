@@ -63,22 +63,21 @@ async function askCommentOptions(): Promise<{ commentScope: CommentScope; commen
   return { commentScope, commentBlockAll }
 }
 
-async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
-  const nonInteractive = !!opts.yes || !process.stdin.isTTY
-  if (nonInteractive) {
-    const targets: AgentTarget[] = []
-    if (opts.claude !== false) targets.push('claude')
-    if (opts.agents) targets.push('agents')
-    return {
-      checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
-      targets,
-      defaultsOnly: !!opts.defaultsOnly,
-      commentHook: opts.commentHook !== false,
-      commentScope: opts.commentScope === 'all' ? 'all' : 'diff',
-      commentBlockAll: !!opts.commentBlockAll,
-    }
+function nonInteractiveSelections(opts: InitCliOptions): Selections {
+  const targets: AgentTarget[] = []
+  if (opts.claude !== false) targets.push('claude')
+  if (opts.agents) targets.push('agents')
+  return {
+    checks: opts.select.length > 0 ? opts.select : recommendedChecks().map((c) => c.name),
+    targets,
+    defaultsOnly: !!opts.defaultsOnly,
+    commentHook: opts.commentHook !== false,
+    commentScope: opts.commentScope === 'all' ? 'all' : 'diff',
+    commentBlockAll: !!opts.commentBlockAll,
   }
+}
 
+async function interactiveSelections(): Promise<Selections> {
   // context: an up-front choice — run everything with defaults (verifyx all, no verify:* scripts), or hand-pick checks.
   const mode = await ask<string>('select', 'How should verify run?', [
     { name: 'defaults', message: 'Run all built-in checks (verifyx all) with default options', enabled: true },
@@ -113,6 +112,11 @@ async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
   return { checks, targets, defaultsOnly, commentHook, commentScope, commentBlockAll }
 }
 
+async function resolveSelections(opts: InitCliOptions): Promise<Selections> {
+  const nonInteractive = !!opts.yes || !process.stdin.isTTY
+  return nonInteractive ? nonInteractiveSelections(opts) : interactiveSelections()
+}
+
 function report(result: InitResult, defaultsOnly: boolean): void {
   if (defaultsOnly) {
     console.log(color.dim('\nDefaults-only: no verify:* scripts written — the `verify` script runs `verifyx all` (every built-in).'))
@@ -122,7 +126,7 @@ function report(result: InitResult, defaultsOnly: boolean): void {
     if (file.action === 'unchanged') continue
     console.log(`  ${ACTION_MARK[file.action]} ${file.path} (${file.action})`)
   }
-  if (result.rootDir !== process.cwd()) {
+  if (result.rootDir !== process.cwd() && result.agentFiles.length > 0) {
     console.log(
       color.yellow(
         `\nAgent files were written to ${result.rootDir} (nearest existing .claude). Claude Code only loads them when launched from there — pass --claude-dir to target a different directory.`,

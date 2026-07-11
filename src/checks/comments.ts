@@ -45,7 +45,7 @@ const whereText = (scope: CommentScope): string => (scope === 'all' ? 'in the co
 
 function gather(opts: CommentsOptions, scope: CommentScope, ignoreGlobs: readonly string[], maxLines: number): CommentCandidates {
   if (scope === 'all') {
-    const files = findSourceFiles(resolvePattern(opts.pattern ?? DEFAULT_PATTERN), [...DEFAULT_IGNORE, ...(opts.ignore ?? [])])
+    const files = findSourceFiles(resolvePattern(opts.pattern ?? DEFAULT_PATTERN), [...DEFAULT_IGNORE, ...ignoreGlobs])
     return gatherAllComments(files, maxLines)
   }
   return gatherDiffComments(ignoreGlobs, maxLines)

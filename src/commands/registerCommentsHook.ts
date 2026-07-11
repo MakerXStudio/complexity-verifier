@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { Command } from 'commander'
 import { minimatch } from 'minimatch'
 
@@ -13,6 +15,14 @@ async function readStdin(): Promise<string> {
   const chunks: Buffer[] = []
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer)
   return Buffer.concat(chunks).toString('utf-8')
+}
+
+// context: Claude's payload path is absolute and may use Windows separators; match ignore globs (e.g.
+// **/*.generated.ts) against both the forward-slashed absolute path and a cwd-relative form, as the check does.
+function isIgnored(file: string, globs: readonly string[]): boolean {
+  const abs = file.replaceAll('\\', '/')
+  const rel = path.relative(process.cwd(), file).replaceAll('\\', '/')
+  return globs.some((glob) => minimatch(abs, glob) || minimatch(rel, glob))
 }
 
 function resolveOptions(): { options: HookOptions; ignore: string[] } {
@@ -43,7 +53,7 @@ export function registerCommentsHook(program: Command): void {
       const target = parsePostToolUsePayload(await readStdin())
       if (!target) return
       const { options, ignore } = resolveOptions()
-      if (ignore.some((glob) => minimatch(target.file, glob))) return
+      if (isIgnored(target.file, ignore)) return
 
       const findings = analyzeAddedComments(target, options)
       if (!hasFindings(findings)) return

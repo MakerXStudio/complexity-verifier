@@ -64,8 +64,15 @@ export function gatherDiffComments(ignoreGlobs: readonly string[], maxLines: num
     for (const c of scanComments(file, content)) {
       if (isDiffExempt(c.text)) continue
       const span = commentSpan(c.text)
-      for (let l = c.line; l < c.line + span; l++) if (changed.has(l)) commentLines++
-      if (changed.has(c.line)) comments.push({ file, line: c.line, text: toSingleLine(c.text) })
+      // context: a comment is in scope when any of its lines changed, not only its opening line, so an edit to a
+      // context: block comment's body still surfaces it to the narration and block-all gates.
+      let touched = false
+      for (let l = c.line; l < c.line + span; l++) {
+        if (!changed.has(l)) continue
+        commentLines++
+        touched = true
+      }
+      if (touched) comments.push({ file, line: c.line, text: toSingleLine(c.text) })
     }
     let addedNonBlank = 0
     for (const l of changed) if (!isBlank(fileLines[l - 1])) addedNonBlank++
