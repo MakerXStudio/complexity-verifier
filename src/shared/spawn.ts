@@ -66,7 +66,10 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
  * Run a command and return its captured stdout/stderr as strings (never emitted to the output buffer), for callers
  * that need to parse a tool's machine-readable output — e.g. counting findings for `--max-warnings`.
  */
-export function captureCommand(command: string, opts: RunCommandOptions = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+export function captureCommand(
+  command: string,
+  opts: { cwd?: string; env?: Record<string, string> } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
     const child = spawn(command, [], {
       stdio: ['ignore', 'pipe', 'pipe'],

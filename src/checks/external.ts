@@ -133,18 +133,19 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         console.log(color.dim(`${spec.name}: not applicable here — skipping`))
         return { name: spec.name, ok: true, skipped: true }
       }
-      const budget = maxWarnings !== undefined ? spec.maxWarnings : undefined
-      if (budget?.strategy === 'count') {
-        return runCountedBudget(spec, budget, maxWarnings as number, extraArgs, envWithLocalBin())
-      }
-      // A `flag`-strategy budget just augments the normal command with the tool's own budget option.
-      const budgetArgs = budget?.strategy === 'flag' ? budget.toArgs(maxWarnings as number) : []
-      const command = appendArgs(selectCommand(spec, resolveMode()), [...extraArgs, ...budgetArgs])
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
-      const code = await runCommand(command, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
-      // Only on failure — passing runs stay silent to save tokens.
-      if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
-      return { name: spec.name, ok: code === 0 }
+      const runReport = async (command: string): Promise<CheckResult> => {
+        const code = await runCommand(command, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
+        if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
+        return { name: spec.name, ok: code === 0 }
+      }
+      if (maxWarnings !== undefined && spec.maxWarnings) {
+        const budget = spec.maxWarnings
+        if (budget.strategy === 'count') return runCountedBudget(spec, budget, maxWarnings, extraArgs, envWithLocalBin())
+        // A `flag`-strategy budget just augments the normal command with the tool's own budget option (budget wins last).
+        return runReport(appendArgs(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
+      }
+      return runReport(appendArgs(selectCommand(spec, resolveMode()), extraArgs))
     },
   }
 }

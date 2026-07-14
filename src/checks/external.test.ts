@@ -84,7 +84,7 @@ describe('runCountedBudget', () => {
   const spec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
   const budget = (count: () => Promise<number>) => ({ strategy: 'count' as const, unit: 'clone', count: () => count() })
 
-  it('passes when the finding count is at or below the budget, without running the display command', async () => {
+  it('passes when the finding count is at or below the budget', async () => {
     expect(
       await runCountedBudget(
         spec,

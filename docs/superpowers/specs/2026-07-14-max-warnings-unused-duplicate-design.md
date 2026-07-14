@@ -200,3 +200,20 @@ the parsers hold the logic that needs pinning.
   their own tool config; the flag lives on the script, consistent with the existing model).
 - Per-category budgets for knip (a single total count is the agreed unit).
 - Adding `--max-warnings` to other external checks.
+
+## Update (post-implementation review)
+
+A Codex review found that knip **does** have a native budget flag,
+[`--max-issues`](https://knip.dev/reference/cli#--max-issues) — this design's premise
+that "knip has no max-issues flag" was wrong. The implementation therefore diverged:
+
+- **`unused-code` uses a `flag` strategy** — it appends knip's own `--max-issues <n>` and
+  takes the verdict from knip's exit code, rather than parsing knip JSON (`countKnipFindings`
+  is gone). This is more correct: knip counts error-level findings honouring rule severity,
+  and enforces config-hint / operational (exit 2) failures independently of the budget, so a
+  tolerance no longer suppresses unrelated errors.
+- **`duplicate-code` keeps the `count` strategy** (jscpd has no native clone-count gate).
+  `countJscpdClones` now throws on an unrecognised report shape instead of returning zero.
+
+So `MaxWarningsSupport` is a two-variant union (`flag` | `count`), not the single `count`
+shape sketched above. The counting-path runner is `runCountedBudget`.

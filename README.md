@@ -152,7 +152,7 @@ verifyx unused-code --max-warnings 5
 verifyx duplicate-code --max-warnings 10
 ```
 
-Without the flag both checks stay **zero-tolerance** (fail on any finding), exactly as before. When the budget is exceeded the check prints how many findings it found, the tool's normal report, and the usual failure hint. Because it's a flag on the script, it applies wherever the script carries it: put it in a `verify:<name>` script and both the bare `verifyx` gate and `verifyx all` pick it up (a `verify:<name>` script [overrides](#verifyx-all-run-everything) the matching built-in). Under `verifyx all` with no such script, the built-in runs at its zero-tolerance default. Passthrough still composes: `verifyx unused-code --max-warnings 5 -- --production`.
+Without the flag both checks stay **zero-tolerance** (fail on any finding), exactly as before. When the budget is exceeded the check prints how many findings it found, the tool's normal report, and the usual failure hint. Because it's a flag on the script, it applies wherever the script carries it: put it in a `verify:<name>` script and both the bare `verifyx` gate and `verifyx all` pick it up (a `verify:<name>` script [overrides](#verifyx-all-run-everything) the matching built-in). Under `verifyx all` with no such script, the built-in runs at its zero-tolerance default. Passthrough still composes (e.g. `verifyx unused-code --max-warnings 5 -- --production`); the one exception is `duplicate-code`, where `--max-warnings` drives jscpd's reporter for counting, so also passing `--reporters`/`--output`/`--silent` after `--` conflicts (it fails with jscpd's own error rather than passing).
 
 ### `complexity`
 

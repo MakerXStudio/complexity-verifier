@@ -41,9 +41,15 @@ export function countJscpdClones(report: { statistics?: { total?: { clones?: unk
 export async function jscpdCount(ctx: MaxWarningsCountContext): Promise<number> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'verifyx-jscpd-'))
   try {
-    await captureCommand(`${appendArgs(ctx.checkCommand, ctx.extraArgs)} --reporters json --output "${dir}" --silent`, { env: ctx.env })
-    return countJscpdClones(JSON.parse(fs.readFileSync(path.join(dir, 'jscpd-report.json'), 'utf8')))
+    const command = `${appendArgs(ctx.checkCommand, ctx.extraArgs)} --reporters json --output "${dir}" --silent`
+    const { code, stderr } = await captureCommand(command, { env: ctx.env })
+    const reportPath = path.join(dir, 'jscpd-report.json')
+    // No report means the run itself failed (e.g. a passthrough flag colliding with the appended ones) — surface the
+    // tool's own stderr so the "could not count" error is actionable, rather than a bare ENOENT from reading the file.
+    if (!fs.existsSync(reportPath)) throw new Error(`jscpd produced no report (exit ${code})${stderr.trim() ? `: ${stderr.trim()}` : ''}`)
+    return countJscpdClones(JSON.parse(fs.readFileSync(reportPath, 'utf8')))
   } finally {
-    fs.rmSync(dir, { recursive: true, force: true })
+    // maxRetries covers a transient Windows lock (AV/indexer) on the just-written report so cleanup can't fail the check.
+    fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3 })
   }
 }
