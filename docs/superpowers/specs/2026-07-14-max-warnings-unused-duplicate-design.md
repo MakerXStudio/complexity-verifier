@@ -14,8 +14,8 @@ new findings slip in.
 
 ## Motivation
 
-Today both checks are all-or-nothing: knip fails if there is *any* unused
-file/export/dependency, and jscpd fails on *any* duplication. On an existing
+Today both checks are all-or-nothing: knip fails if there is _any_ unused
+file/export/dependency, and jscpd fails on _any_ duplication. On an existing
 codebase that means the check is red from day one and stays red until every finding
 is fixed, so teams tend not to turn it on at all. A tolerance budget makes gradual
 adoption possible.
@@ -23,7 +23,7 @@ adoption possible.
 Neither underlying tool has a native count-based gate:
 
 - **knip** exits non-zero whenever there is any finding; it has no "max issues" flag.
-- **jscpd** only offers `--threshold <percent>` (a duplication *percentage*), not a
+- **jscpd** only offers `--threshold <percent>` (a duplication _percentage_), not a
   count of clones.
 
 So `verifyx` itself must count findings from each tool's machine-readable output and
@@ -40,9 +40,9 @@ decide pass/fail. That is the core of this design.
   - `count > n` → **fail**, printing a one-line count summary, then the tool's normal
     findings report, then the existing external-failure hint.
 - **Count unit:**
-  - `unused-code` (knip): total unused *items* — every unused file, export, exported
+  - `unused-code` (knip): total unused _items_ — every unused file, export, exported
     type, and dependency, summed into a single number.
-  - `duplicate-code` (jscpd): the number of detected duplicate *clones*.
+  - `duplicate-code` (jscpd): the number of detected duplicate _clones_.
 
 ## How it flows through `verifyx`
 
@@ -53,14 +53,14 @@ A consumer wires a budget into their `package.json`:
 {
   "scripts": {
     "verify:unused-code": "verifyx unused-code --max-warnings 5",
-    "verify:duplicate-code": "verifyx duplicate-code --max-warnings 10"
-  }
+    "verify:duplicate-code": "verifyx duplicate-code --max-warnings 10",
+  },
 }
 ```
 
 - **Bare `verifyx`** (the curated gate) runs these `verify:*` scripts verbatim, so the
   budget applies.
-- **`verifyx all`** runs each built-in via `runDefault()` with *no* arguments, so a
+- **`verifyx all`** runs each built-in via `runDefault()` with _no_ arguments, so a
   built-in with no override runs at its **default: zero tolerance** (today's behavior).
   A `verify:<name>` script that matches a built-in **overrides** it under `verifyx all`,
   so the same one-line script above is also how you apply a budget in "run everything"
@@ -99,7 +99,7 @@ export type RunDefaultOptions = {
 ### `runDefault` branch
 
 `defineExternalCheck`'s `runDefault` takes the counting path **only** when
-`maxWarnings` is provided *and* the spec has a `maxWarnings` capability; otherwise it
+`maxWarnings` is provided _and_ the spec has a `maxWarnings` capability; otherwise it
 runs exactly as today. The bin-present and `canRun` guards run first, unchanged (so a
 missing tool still skips gracefully before any counting).
 

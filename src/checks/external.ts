@@ -3,8 +3,12 @@ import path from 'node:path'
 
 import { color } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
-import { runCommand } from '../shared/spawn.ts'
+import { emit } from '../shared/output.ts'
+import { appendArgs, captureCommand, runCommand } from '../shared/spawn.ts'
+import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
+
+export { appendArgs } from '../shared/spawn.ts'
 
 const BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
 
@@ -46,11 +50,8 @@ export type ExternalCheckSpec = {
    * script so a consumer can see and tweak them. Not baked into `runDefault`; only the scaffolded script carries them.
    */
   scaffoldArgs?: string
-}
-
-/** Append user/scaffold `extraArgs` to an external tool's command, preserving shell semantics (globs unquoted). */
-export function appendArgs(command: string, extraArgs: readonly string[] = []): string {
-  return extraArgs.length > 0 ? `${command} ${extraArgs.join(' ')}` : command
+  /** Present only for checks that support `--max-warnings`; defines how to count findings for the tolerance gate. */
+  maxWarnings?: MaxWarningsSupport
 }
 
 /** Pick the command for the run mode: the fix command only in fix mode and only when the check is fixable. */
@@ -67,6 +68,46 @@ export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin'
   return `↳ ${spec.name} uses ${spec.bin}: ran \`${command}\`. Configure ${spec.bin}${spec.docs ? ` — ${spec.docs}` : ''}.`
 }
 
+type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'fixCommand' | 'docs' | 'transformOutput'> & {
+  maxWarnings: MaxWarningsSupport
+}
+
+/**
+ * Run a countable external check under a `--max-warnings` budget: count findings via the tool's machine-readable
+ * output and pass while the count stays at or below the budget. On over-budget, print a one-line summary, then the
+ * tool's normal report (re-run and shown regardless of its own exit code), then the failure hint. A counting error
+ * fails loudly rather than passing silently.
+ */
+export async function runWithMaxWarnings(
+  spec: CountableSpec,
+  maxWarnings: number,
+  extraArgs: string[],
+  env: Record<string, string>,
+): Promise<CheckResult> {
+  let count: number
+  try {
+    count = await spec.maxWarnings.count({ extraArgs, env, checkCommand: spec.checkCommand })
+  } catch (error) {
+    const docs = spec.docs ? ` — ${spec.docs}` : ''
+    console.error(
+      color.dim(
+        `↳ ${spec.name}: could not count ${spec.bin} findings for --max-warnings (${String(error)}). Configure ${spec.bin}${docs}.`,
+      ),
+    )
+    return { name: spec.name, ok: false }
+  }
+  if (withinBudget(count, maxWarnings)) return { name: spec.name, ok: true }
+
+  const unit = count === 1 ? spec.maxWarnings.unit : `${spec.maxWarnings.unit}s`
+  console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
+  const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
+  const { stdout, stderr } = await captureCommand(command, { env })
+  const report = stdout || stderr
+  if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
+  console.error(color.dim(externalFailureHint(spec, command)))
+  return { name: spec.name, ok: false }
+}
+
 /** Build a Check that shells out to an external tool, skipping gracefully when the tool cannot run. */
 export function defineExternalCheck(spec: ExternalCheckSpec): Check {
   return {
@@ -74,6 +115,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     description: spec.description,
     kind: 'external',
     recommended: spec.recommended ?? false,
+    supportsMaxWarnings: !!spec.maxWarnings,
     // Scaffold as a call into this CLI so fix-vs-check lives in one place, not the consumer's script.
     scaffold: {
       script: spec.scaffoldArgs ? `verifyx ${spec.name} -- ${spec.scaffoldArgs}` : `verifyx ${spec.name}`,
@@ -81,7 +123,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     },
     // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts.
     eject: { check: spec.checkCommand, fix: spec.fixCommand },
-    async runDefault({ extraArgs }: RunDefaultOptions = {}): Promise<CheckResult> {
+    async runDefault({ extraArgs, maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {
         console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`npx verifyx init\`)`))
         return { name: spec.name, ok: true, skipped: true }
@@ -89,6 +131,9 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       if (spec.canRun && !spec.canRun()) {
         console.log(color.dim(`${spec.name}: not applicable here — skipping`))
         return { name: spec.name, ok: true, skipped: true }
+      }
+      if (maxWarnings !== undefined && spec.maxWarnings) {
+        return runWithMaxWarnings({ ...spec, maxWarnings: spec.maxWarnings }, maxWarnings, extraArgs ?? [], envWithLocalBin())
       }
       const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).

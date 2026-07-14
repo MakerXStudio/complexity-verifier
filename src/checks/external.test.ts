@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { appendArgs, defineExternalCheck, externalFailureHint, selectCommand } from './external.ts'
+import { appendArgs, defineExternalCheck, externalFailureHint, runWithMaxWarnings, selectCommand } from './external.ts'
 
 const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
 const notFixable = { checkCommand: 'tsc --noEmit' }
@@ -77,5 +77,44 @@ describe('defineExternalCheck', () => {
   it('scaffolds a bare CLI call when there are no default args', () => {
     const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: 'knip', devDeps: [] })
     expect(knip.scaffold.script).toBe('verifyx unused-code')
+  })
+})
+
+describe('runWithMaxWarnings', () => {
+  const baseSpec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
+
+  it('passes when the finding count is at or below the budget, without running the display command', async () => {
+    const spec = { ...baseSpec, maxWarnings: { unit: 'clone', count: async () => 5 } }
+    expect(await runWithMaxWarnings(spec, 5, [], {})).toEqual({ name: 'duplicate-code', ok: true })
+  })
+
+  it('fails when the finding count exceeds the budget', async () => {
+    const spec = { ...baseSpec, checkCommand: 'node -e ""', maxWarnings: { unit: 'clone', count: async () => 6 } }
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect((await runWithMaxWarnings(spec, 5, [], {})).ok).toBe(false)
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('fails loudly when counting throws instead of silently passing', async () => {
+    const spec = {
+      ...baseSpec,
+      maxWarnings: {
+        unit: 'clone',
+        count: async () => {
+          throw new Error('knip crashed')
+        },
+      },
+    }
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const result = await runWithMaxWarnings(spec, 5, [], {})
+      expect(result.ok).toBe(false)
+      expect(spy).toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })

@@ -15,6 +15,11 @@ export type CheckResult = {
 export type RunDefaultOptions = {
   /** Extra arguments appended verbatim to an external check's underlying command (e.g. `verifyx circular-deps -- src/*.ts`). */
   extraArgs?: string[]
+  /**
+   * When set, an external check that supports counting (currently `unused-code`, `duplicate-code`) tolerates up to
+   * this many findings, failing only when the count exceeds it. Ignored by checks without a counting capability.
+   */
+  maxWarnings?: number
 }
 
 /** A single verification. Native checks run in-process; external checks shell out to a tool. */
@@ -24,6 +29,8 @@ export type Check = {
   kind: CheckKind
   /** Whether `verifyx init` preselects this check as a recommended default. */
   recommended: boolean
+  /** Whether this check accepts `--max-warnings <n>` (counts findings and tolerates up to n). External checks only. */
+  supportsMaxWarnings?: boolean
   /** Run the check with its default options and print its own report. Resolves to the outcome. */
   runDefault: (options?: RunDefaultOptions) => Promise<CheckResult>
   /** How `verify init` wires this check into a consuming project. */

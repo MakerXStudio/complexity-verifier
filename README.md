@@ -142,6 +142,18 @@ Each external check is configured through its **tool's own config file**, exactl
 - `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
 - `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
 
+**Tolerating findings with `--max-warnings`.** `unused-code` and `duplicate-code` accept `--max-warnings <n>`, an ESLint-style tolerance budget: the check counts its findings and passes while the count stays **at or below** `n`, failing only when it exceeds `n`. It's for turning a check on over a codebase that already has debt — pin the budget at the current count and ratchet it down, without letting new findings slip in. Neither tool has a native count gate, so `verifyx` counts for them (from knip's JSON reporter and jscpd's JSON report).
+
+- `unused-code` counts every unused item knip reports (files, exports, exported types, dependencies) as one.
+- `duplicate-code` counts each duplicate clone jscpd reports as one.
+
+```sh
+verifyx unused-code --max-warnings 5
+verifyx duplicate-code --max-warnings 10
+```
+
+Without the flag both checks stay **zero-tolerance** (fail on any finding), exactly as before. When the budget is exceeded the check prints how many findings it found, the tool's normal report, and the usual failure hint. Because it's a flag on the script, it applies wherever the script carries it: put it in a `verify:<name>` script and both the bare `verifyx` gate and `verifyx all` pick it up (a `verify:<name>` script [overrides](#verifyx-all-run-everything) the matching built-in). Under `verifyx all` with no such script, the built-in runs at its zero-tolerance default. Passthrough still composes: `verifyx unused-code --max-warnings 5 -- --production`.
+
 ### `complexity`
 
 ```sh
@@ -316,6 +328,9 @@ const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
 
 // Run any single check by name, including the ones that shell out to an external tool.
 const lint = await getCheck('lint')?.runDefault()
+
+// unused-code / duplicate-code accept a max-warnings budget (pass iff findings <= maxWarnings).
+const unused = await getCheck('unused-code')?.runDefault({ maxWarnings: 5 })
 ```
 
 Native checks also expose a direct runner (`runComplexity`, `runComments`, `runHardcodedColors`, `runForbiddenStrings`); external checks (`lint`, `format`, `check-types`, `unused-code`, `circular-deps`, `duplicate-code`) have no standalone function and are run via the registry (`getCheck(name)?.runDefault()`) or the orchestrators.

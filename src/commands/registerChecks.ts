@@ -1,4 +1,4 @@
-import type { Command } from 'commander'
+import { type Command, InvalidArgumentError } from 'commander'
 
 import { runComments } from '../checks/comments.ts'
 import { runComplexity } from '../checks/complexity.ts'
@@ -12,6 +12,12 @@ function finish(ok: boolean): void {
 
 function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
+}
+
+/** Commander arg parser for `--max-warnings <n>`: a non-negative integer, else a clean CLI error. */
+export function parseMaxWarnings(raw: string): number {
+  if (!/^\d+$/.test(raw.trim())) throw new InvalidArgumentError('--max-warnings must be a non-negative integer.')
+  return Number(raw.trim())
 }
 
 /** Register a directly-invocable subcommand for every built-in check (`verifyx complexity`, `verifyx knip`, …). */
@@ -71,14 +77,17 @@ export function registerChecks(program: Command): void {
 
   // Mode flows via the VERIFY_MODE env / CI, not per-subcommand flags (which collide with the root's --check).
   for (const check of CHECKS.filter((c) => c.kind === 'external')) {
-    program
+    const command = program
       .command(check.name)
       .description(check.description)
       // Everything after `--` is forwarded verbatim to the underlying tool (e.g. `verifyx circular-deps -- src/*.ts`).
       .argument('[toolArgs...]', 'extra arguments passed through to the underlying tool (after `--`)')
-      .action(async (toolArgs: string[]) => {
-        const result = await check.runDefault({ extraArgs: toolArgs })
-        finish(result.ok)
-      })
+    if (check.supportsMaxWarnings) {
+      command.option('--max-warnings <n>', 'tolerate up to n findings before failing (counts findings)', parseMaxWarnings)
+    }
+    command.action(async (toolArgs: string[], opts: { maxWarnings?: number }) => {
+      const result = await check.runDefault({ extraArgs: toolArgs, maxWarnings: opts.maxWarnings })
+      finish(result.ok)
+    })
   }
 }

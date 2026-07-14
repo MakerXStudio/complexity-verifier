@@ -2,6 +2,11 @@ import { spawn } from 'node:child_process'
 
 import { emit, isCapturing } from './output.ts'
 
+/** Append user/scaffold `extraArgs` to a command, preserving shell semantics (globs unquoted). */
+export function appendArgs(command: string, extraArgs: readonly string[] = []): string {
+  return extraArgs.length > 0 ? `${command} ${extraArgs.join(' ')}` : command
+}
+
 let verboseMode = false
 
 /** When verbose, per-command output is always streamed; otherwise it is buffered and only shown on failure. */
@@ -54,5 +59,28 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
       resolve(exitCode)
     })
     child.on('error', () => resolve(127))
+  })
+}
+
+/**
+ * Run a command and return its captured stdout/stderr as strings (never emitted to the output buffer), for callers
+ * that need to parse a tool's machine-readable output — e.g. counting findings for `--max-warnings`.
+ */
+export function captureCommand(command: string, opts: RunCommandOptions = {}): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn(command, [], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      shell: true,
+      cwd: opts.cwd ?? process.cwd(),
+      env: opts.env ? { ...process.env, ...opts.env } : undefined,
+    })
+    const out: Buffer[] = []
+    const err: Buffer[] = []
+    child.stdout?.on('data', (data: Buffer) => out.push(data))
+    child.stderr?.on('data', (data: Buffer) => err.push(data))
+    child.on('close', (code) => {
+      resolve({ code: code ?? 1, stdout: Buffer.concat(out).toString(), stderr: Buffer.concat(err).toString() })
+    })
+    child.on('error', () => resolve({ code: 127, stdout: '', stderr: '' }))
   })
 }
