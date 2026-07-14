@@ -7,47 +7,31 @@ import { appendArgs, captureCommand } from '../shared/spawn.ts'
 /** Context handed to a counting run: the user's passthrough args, the PATH-augmented env, and the check's own command. */
 type MaxWarningsCountContext = { extraArgs: string[]; env: Record<string, string>; checkCommand: string }
 
-/** Opt-in capability that lets an external check tolerate up to `--max-warnings` findings by counting them itself. */
-export type MaxWarningsSupport = {
-  /** Singular label for one finding, pluralised in the over-budget summary, e.g. 'clone' → '6 clones found'. */
-  unit: string
-  /** Run the tool in machine-readable mode and return the total finding count. */
-  count: (ctx: MaxWarningsCountContext) => Promise<number>
-}
-
-/** knip's JSON reporter attaches ownership metadata (not a finding) under this key; exclude it from the count. */
-const KNIP_NON_FINDING_KEYS = new Set(['owners'])
-
 /**
- * Total unused items in a knip `--reporter json` report: every finding array (files, exports, types,
- * dependencies, duplicate groups, …) summed across all issue rows. Robust to knip adding new issue types,
- * since any array-valued field counts; only ownership metadata and the row's `file` string are excluded.
+ * How a check applies a `--max-warnings <n>` budget:
+ * - `flag`: the tool has its own budget option, so map n to the args to append — the tool's exit code is the verdict,
+ *   which keeps any independent failures (e.g. knip config hints, operational errors) enforced regardless of n.
+ * - `count`: the tool has no native gate, so verifyx counts findings from its machine-readable output and compares to n.
  */
-export function countKnipFindings(report: { issues?: Array<Record<string, unknown>> }): number {
-  let total = 0
-  for (const row of report.issues ?? []) {
-    for (const [key, value] of Object.entries(row)) {
-      if (!KNIP_NON_FINDING_KEYS.has(key) && Array.isArray(value)) total += value.length
-    }
-  }
-  return total
-}
-
-/** Number of duplicate clones in a jscpd JSON report: the authoritative total, else the duplicates array length. */
-export function countJscpdClones(report: { statistics?: { total?: { clones?: number } }; duplicates?: unknown[] }): number {
-  return report.statistics?.total?.clones ?? report.duplicates?.length ?? 0
-}
+export type MaxWarningsSupport =
+  | { strategy: 'flag'; toArgs: (maxWarnings: number) => string[] }
+  | { strategy: 'count'; unit: string; count: (ctx: MaxWarningsCountContext) => Promise<number> }
 
 /** A counted check passes while findings stay at or below the budget; the budget itself is tolerated (inclusive). */
 export function withinBudget(count: number, maxWarnings: number): boolean {
   return count <= maxWarnings
 }
 
-/** Count knip's findings by asking it for a JSON report on stdout (config-hint errors are irrelevant to the count). */
-export async function knipCount(ctx: MaxWarningsCountContext): Promise<number> {
-  const command = `${appendArgs('knip --no-progress', ctx.extraArgs)} --reporter json`
-  const { stdout } = await captureCommand(command, { env: ctx.env })
-  return countKnipFindings(JSON.parse(stdout))
+/**
+ * Number of duplicate clones in a jscpd JSON report. A valid report always carries a non-negative integer
+ * `statistics.total.clones` (or at least a `duplicates` array); any other shape is unrecognised and throws, so a
+ * degraded or version-shifted report fails loudly rather than silently counting as zero.
+ */
+export function countJscpdClones(report: { statistics?: { total?: { clones?: unknown } }; duplicates?: unknown }): number {
+  const clones = report.statistics?.total?.clones
+  if (typeof clones === 'number' && Number.isInteger(clones) && clones >= 0) return clones
+  if (Array.isArray(report.duplicates)) return report.duplicates.length
+  throw new Error('unrecognised jscpd JSON report (no non-negative integer statistics.total.clones and no duplicates array)')
 }
 
 /**

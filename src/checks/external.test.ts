@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { appendArgs, defineExternalCheck, externalFailureHint, runWithMaxWarnings, selectCommand } from './external.ts'
+import { appendArgs, defineExternalCheck, externalFailureHint, runCountedBudget, selectCommand } from './external.ts'
 
 const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
 const notFixable = { checkCommand: 'tsc --noEmit' }
@@ -80,37 +80,49 @@ describe('defineExternalCheck', () => {
   })
 })
 
-describe('runWithMaxWarnings', () => {
-  const baseSpec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
+describe('runCountedBudget', () => {
+  const spec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
+  const budget = (count: () => Promise<number>) => ({ strategy: 'count' as const, unit: 'clone', count: () => count() })
 
   it('passes when the finding count is at or below the budget, without running the display command', async () => {
-    const spec = { ...baseSpec, maxWarnings: { unit: 'clone', count: async () => 5 } }
-    expect(await runWithMaxWarnings(spec, 5, [], {})).toEqual({ name: 'duplicate-code', ok: true })
+    expect(
+      await runCountedBudget(
+        spec,
+        budget(async () => 5),
+        5,
+        [],
+        {},
+      ),
+    ).toEqual({ name: 'duplicate-code', ok: true })
   })
 
   it('fails when the finding count exceeds the budget', async () => {
-    const spec = { ...baseSpec, checkCommand: 'node -e ""', maxWarnings: { unit: 'clone', count: async () => 6 } }
+    const displaySpec = { ...spec, checkCommand: 'node -e ""' }
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      expect((await runWithMaxWarnings(spec, 5, [], {})).ok).toBe(false)
+      expect(
+        (
+          await runCountedBudget(
+            displaySpec,
+            budget(async () => 6),
+            5,
+            [],
+            {},
+          )
+        ).ok,
+      ).toBe(false)
     } finally {
       spy.mockRestore()
     }
   })
 
   it('fails loudly when counting throws instead of silently passing', async () => {
-    const spec = {
-      ...baseSpec,
-      maxWarnings: {
-        unit: 'clone',
-        count: async () => {
-          throw new Error('knip crashed')
-        },
-      },
-    }
+    const throwing = budget(async () => {
+      throw new Error('jscpd crashed')
+    })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
-      const result = await runWithMaxWarnings(spec, 5, [], {})
+      const result = await runCountedBudget(spec, throwing, 5, [], {})
       expect(result.ok).toBe(false)
       expect(spy).toHaveBeenCalled()
     } finally {

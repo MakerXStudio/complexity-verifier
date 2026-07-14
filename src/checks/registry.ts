@@ -6,7 +6,7 @@ import { runComplexity } from './complexity.ts'
 import { defineExternalCheck } from './external.ts'
 import { runForbiddenStrings } from './forbidden-strings.ts'
 import { runHardcodedColors } from './hardcoded-colors.ts'
-import { jscpdCount, knipCount } from './maxWarnings.ts'
+import { jscpdCount } from './maxWarnings.ts'
 import type { Check, CheckResult } from './types.ts'
 
 function nativeCheck(name: string, description: string, recommended: boolean, run: () => CheckResult, script = `verifyx ${name}`): Check {
@@ -70,7 +70,8 @@ export const CHECKS: Check[] = [
     checkCommand: 'knip --no-progress --treat-config-hints-as-errors',
     devDeps: ['knip'],
     docs: 'https://knip.dev/reference/configuration',
-    maxWarnings: { unit: 'unused item', count: knipCount },
+    // knip has a native budget (--max-issues counts error-level findings); config hints / errors still fail regardless.
+    maxWarnings: { strategy: 'flag', toArgs: (n) => ['--max-issues', String(n)] },
   }),
   defineExternalCheck({
     name: 'circular-deps',
@@ -92,7 +93,8 @@ export const CHECKS: Check[] = [
     // NO_COLOR/FORCE_COLOR, so strip the red foreground from its output; the table renders in the default colour.
     transformOutput: withoutRed,
     docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
-    maxWarnings: { unit: 'clone', count: jscpdCount },
+    // jscpd has no native clone-count gate (only a duplication-percentage --threshold), so verifyx counts clones.
+    maxWarnings: { strategy: 'count', unit: 'clone', count: jscpdCount },
   }),
 ]
 

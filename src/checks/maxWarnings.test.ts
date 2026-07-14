@@ -1,37 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { countJscpdClones, countKnipFindings, withinBudget } from './maxWarnings.ts'
-
-describe('countKnipFindings', () => {
-  it('sums the lengths of every finding array across all issue rows', () => {
-    const report = {
-      issues: [
-        { file: 'src/unused.ts', files: ['src/unused.ts'], exports: [], dependencies: [] },
-        {
-          file: 'src/foo.ts',
-          exports: [{ name: 'a' }, { name: 'b' }],
-          types: [{ name: 'T' }],
-          duplicates: [[{ name: 'x' }, { name: 'y' }]],
-        },
-        { file: 'package.json', dependencies: [{ name: 'lodash' }], devDependencies: [{ name: 'jest' }], unlisted: [{ name: 'react' }] },
-      ],
-    }
-    expect(countKnipFindings(report)).toBe(8)
-  })
-
-  it('excludes the file string and owners metadata from the count', () => {
-    const report = { issues: [{ file: 'src/foo.ts', owners: [{ name: 'team-a' }, { name: 'team-b' }], exports: [{ name: 'unused' }] }] }
-    expect(countKnipFindings(report)).toBe(1)
-  })
-
-  it('returns 0 for a clean report', () => {
-    expect(countKnipFindings({ issues: [] })).toBe(0)
-  })
-
-  it('returns 0 when the issues key is absent', () => {
-    expect(countKnipFindings({})).toBe(0)
-  })
-})
+import { countJscpdClones, withinBudget } from './maxWarnings.ts'
 
 describe('countJscpdClones', () => {
   it('reads the total clone count from statistics', () => {
@@ -45,6 +14,16 @@ describe('countJscpdClones', () => {
 
   it('returns 0 for a clean report', () => {
     expect(countJscpdClones({ duplicates: [], statistics: { total: { clones: 0 } } })).toBe(0)
+  })
+
+  it('throws on an unrecognised shape rather than counting it as zero', () => {
+    expect(() => countJscpdClones({})).toThrow(/unrecognised/)
+    expect(() => countJscpdClones({ statistics: { total: {} } })).toThrow(/unrecognised/)
+  })
+
+  it('rejects a non-integer or negative clone count when there is no duplicates array', () => {
+    expect(() => countJscpdClones({ statistics: { total: { clones: -1 } } })).toThrow(/unrecognised/)
+    expect(() => countJscpdClones({ statistics: { total: { clones: 2.5 } } })).toThrow(/unrecognised/)
   })
 })
 

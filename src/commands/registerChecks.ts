@@ -14,10 +14,13 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
 
-/** Commander arg parser for `--max-warnings <n>`: a non-negative integer, else a clean CLI error. */
+/** Commander arg parser for `--max-warnings <n>`: a safe non-negative integer, else a clean CLI error. */
 export function parseMaxWarnings(raw: string): number {
-  if (!/^\d+$/.test(raw.trim())) throw new InvalidArgumentError('--max-warnings must be a non-negative integer.')
-  return Number(raw.trim())
+  const value = Number(raw.trim())
+  if (!/^\d+$/.test(raw.trim()) || !Number.isSafeInteger(value)) {
+    throw new InvalidArgumentError('--max-warnings must be a non-negative integer.')
+  }
+  return value
 }
 
 /** Register a directly-invocable subcommand for every built-in check (`verifyx complexity`, `verifyx knip`, …). */

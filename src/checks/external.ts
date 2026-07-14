@@ -68,25 +68,25 @@ export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin'
   return `↳ ${spec.name} uses ${spec.bin}: ran \`${command}\`. Configure ${spec.bin}${spec.docs ? ` — ${spec.docs}` : ''}.`
 }
 
-type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'fixCommand' | 'docs' | 'transformOutput'> & {
-  maxWarnings: MaxWarningsSupport
-}
+type CountBudget = Extract<MaxWarningsSupport, { strategy: 'count' }>
+type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'fixCommand' | 'docs' | 'transformOutput'>
 
 /**
- * Run a countable external check under a `--max-warnings` budget: count findings via the tool's machine-readable
- * output and pass while the count stays at or below the budget. On over-budget, print a one-line summary, then the
- * tool's normal report (re-run and shown regardless of its own exit code), then the failure hint. A counting error
- * fails loudly rather than passing silently.
+ * Run a check whose tool has no native budget under a `--max-warnings` budget: count findings via the tool's
+ * machine-readable output and pass while the count stays at or below the budget. On over-budget, print a one-line
+ * summary, then the tool's normal report (re-run and shown regardless of its own exit code), then the failure hint.
+ * A counting error fails loudly rather than passing silently.
  */
-export async function runWithMaxWarnings(
+export async function runCountedBudget(
   spec: CountableSpec,
+  budget: CountBudget,
   maxWarnings: number,
   extraArgs: string[],
   env: Record<string, string>,
 ): Promise<CheckResult> {
   let count: number
   try {
-    count = await spec.maxWarnings.count({ extraArgs, env, checkCommand: spec.checkCommand })
+    count = await budget.count({ extraArgs, env, checkCommand: spec.checkCommand })
   } catch (error) {
     const docs = spec.docs ? ` — ${spec.docs}` : ''
     console.error(
@@ -98,11 +98,12 @@ export async function runWithMaxWarnings(
   }
   if (withinBudget(count, maxWarnings)) return { name: spec.name, ok: true }
 
-  const unit = count === 1 ? spec.maxWarnings.unit : `${spec.maxWarnings.unit}s`
+  const unit = count === 1 ? budget.unit : `${budget.unit}s`
   console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
   const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
+  // Keep both channels: the report is on stdout, but an actionable config/module error may be on stderr.
   const { stdout, stderr } = await captureCommand(command, { env })
-  const report = stdout || stderr
+  const report = stdout + stderr
   if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
   console.error(color.dim(externalFailureHint(spec, command)))
   return { name: spec.name, ok: false }
@@ -123,7 +124,7 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
     },
     // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts.
     eject: { check: spec.checkCommand, fix: spec.fixCommand },
-    async runDefault({ extraArgs, maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
+    async runDefault({ extraArgs = [], maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {
         console.log(color.dim(`${spec.name}: ${spec.bin} not installed — skipping (add it with \`npx verifyx init\`)`))
         return { name: spec.name, ok: true, skipped: true }
@@ -132,10 +133,13 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         console.log(color.dim(`${spec.name}: not applicable here — skipping`))
         return { name: spec.name, ok: true, skipped: true }
       }
-      if (maxWarnings !== undefined && spec.maxWarnings) {
-        return runWithMaxWarnings({ ...spec, maxWarnings: spec.maxWarnings }, maxWarnings, extraArgs ?? [], envWithLocalBin())
+      const budget = maxWarnings !== undefined ? spec.maxWarnings : undefined
+      if (budget?.strategy === 'count') {
+        return runCountedBudget(spec, budget, maxWarnings as number, extraArgs, envWithLocalBin())
       }
-      const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
+      // A `flag`-strategy budget just augments the normal command with the tool's own budget option.
+      const budgetArgs = budget?.strategy === 'flag' ? budget.toArgs(maxWarnings as number) : []
+      const command = appendArgs(selectCommand(spec, resolveMode()), [...extraArgs, ...budgetArgs])
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
       const code = await runCommand(command, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
       // Only on failure — passing runs stay silent to save tokens.

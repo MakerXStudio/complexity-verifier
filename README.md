@@ -142,10 +142,10 @@ Each external check is configured through its **tool's own config file**, exactl
 - `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
 - `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
 
-**Tolerating findings with `--max-warnings`.** `unused-code` and `duplicate-code` accept `--max-warnings <n>`, an ESLint-style tolerance budget: the check counts its findings and passes while the count stays **at or below** `n`, failing only when it exceeds `n`. It's for turning a check on over a codebase that already has debt — pin the budget at the current count and ratchet it down, without letting new findings slip in. Neither tool has a native count gate, so `verifyx` counts for them (from knip's JSON reporter and jscpd's JSON report).
+**Tolerating findings with `--max-warnings`.** `unused-code` and `duplicate-code` accept `--max-warnings <n>`, an ESLint-style tolerance budget: the check passes while its finding count stays **at or below** `n`, failing only when it exceeds `n`. It's for turning a check on over a codebase that already has debt — pin the budget at the current count and ratchet it down, without letting new findings slip in.
 
-- `unused-code` counts every unused item knip reports (files, exports, exported types, dependencies) as one.
-- `duplicate-code` counts each duplicate clone jscpd reports as one.
+- `unused-code` maps the budget to knip's own [`--max-issues`](https://knip.dev/reference/cli#--max-issues), so it counts each error-level finding (unused files, exports, types, dependencies) as one and honours your knip rule severities. Config-hint and configuration errors still fail regardless of the budget.
+- `duplicate-code` has no native count gate in jscpd (only a duplication-percentage `--threshold`), so `verifyx` counts each duplicate clone jscpd reports as one.
 
 ```sh
 verifyx unused-code --max-warnings 5

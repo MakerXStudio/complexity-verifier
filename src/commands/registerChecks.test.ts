@@ -24,4 +24,8 @@ describe('parseMaxWarnings', () => {
   it('rejects an empty value', () => {
     expect(() => parseMaxWarnings('')).toThrow(/non-negative integer/)
   })
+
+  it('rejects an unsafe integer that would round to an effectively infinite budget', () => {
+    expect(() => parseMaxWarnings('999999999999999999999999999999999999')).toThrow(/non-negative integer/)
+  })
 })
