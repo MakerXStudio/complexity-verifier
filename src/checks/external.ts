@@ -4,7 +4,7 @@ import path from 'node:path'
 import { color } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { emit } from '../shared/output.ts'
-import { appendArgs, captureCommand, runCommand } from '../shared/spawn.ts'
+import { appendArgs, runCommand } from '../shared/spawn.ts'
 import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
 
@@ -68,7 +68,7 @@ export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin'
 }
 
 type CountBudget = Extract<MaxWarningsSupport, { strategy: 'count' }>
-type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'fixCommand' | 'docs' | 'transformOutput'>
+type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'docs' | 'transformOutput'>
 
 export async function runCountedBudget(
   spec: CountableSpec,
@@ -77,9 +77,9 @@ export async function runCountedBudget(
   extraArgs: string[],
   env: Record<string, string>,
 ): Promise<CheckResult> {
-  let count: number
+  let counted: { count: number; report: string }
   try {
-    count = await budget.count({ extraArgs, env, checkCommand: spec.checkCommand })
+    counted = await budget.count({ extraArgs, env, checkCommand: spec.checkCommand })
   } catch (error) {
     const docs = spec.docs ? ` — ${spec.docs}` : ''
     console.error(
@@ -89,15 +89,13 @@ export async function runCountedBudget(
     )
     return { name: spec.name, ok: false }
   }
+  const { count, report } = counted
   if (withinBudget(count, maxWarnings)) return { name: spec.name, ok: true }
 
   const unit = count === 1 ? budget.unit : `${budget.unit}s`
   console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
-  const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
-  const { stdout, stderr } = await captureCommand(command, { env })
-  const report = stdout + stderr
   if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
-  console.error(color.dim(externalFailureHint(spec, command)))
+  console.error(color.dim(externalFailureHint(spec, appendArgs(spec.checkCommand, extraArgs))))
   return { name: spec.name, ok: false }
 }
 
