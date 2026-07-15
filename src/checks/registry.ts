@@ -70,7 +70,6 @@ export const CHECKS: Check[] = [
     checkCommand: 'knip --no-progress --treat-config-hints-as-errors',
     devDeps: ['knip'],
     docs: 'https://knip.dev/reference/configuration',
-    // knip has a native budget (--max-issues counts error-level findings); config hints / errors still fail regardless.
     maxWarnings: { strategy: 'flag', toArgs: (n) => ['--max-issues', String(n)] },
   }),
   defineExternalCheck({
@@ -93,7 +92,6 @@ export const CHECKS: Check[] = [
     // NO_COLOR/FORCE_COLOR, so strip the red foreground from its output; the table renders in the default colour.
     transformOutput: withoutRed,
     docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
-    // jscpd has no native clone-count gate (only a duplication-percentage --threshold), so verifyx counts clones.
     maxWarnings: { strategy: 'count', unit: 'clone', count: jscpdCount },
   }),
 ]

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 
 import { emit, isCapturing } from './output.ts'
 
-/** Append user/scaffold `extraArgs` to a command, preserving shell semantics (globs unquoted). */
+// Keep passthrough globs unquoted for shell expansion.
 export function appendArgs(command: string, extraArgs: readonly string[] = []): string {
   return extraArgs.length > 0 ? `${command} ${extraArgs.join(' ')}` : command
 }
@@ -62,10 +62,6 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
   })
 }
 
-/**
- * Run a command and return its captured stdout/stderr as strings (never emitted to the output buffer), for callers
- * that need to parse a tool's machine-readable output — e.g. counting findings for `--max-warnings`.
- */
 export function captureCommand(
   command: string,
   opts: { cwd?: string; env?: Record<string, string> } = {},

@@ -142,17 +142,17 @@ Each external check is configured through its **tool's own config file**, exactl
 - `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
 - `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
 
-**Tolerating findings with `--max-warnings`.** `unused-code` and `duplicate-code` accept `--max-warnings <n>`, an ESLint-style tolerance budget: the check passes while its finding count stays **at or below** `n`, failing only when it exceeds `n`. It's for turning a check on over a codebase that already has debt — pin the budget at the current count and ratchet it down, without letting new findings slip in.
+### `--max-warnings`
 
-- `unused-code` maps the budget to knip's own [`--max-issues`](https://knip.dev/reference/cli#--max-issues), so it counts each error-level finding (unused files, exports, types, dependencies) as one and honours your knip rule severities. Config-hint and configuration errors still fail regardless of the budget.
-- `duplicate-code` has no native count gate in jscpd (only a duplication-percentage `--threshold`), so `verifyx` counts each duplicate clone jscpd reports as one.
+`unused-code` and `duplicate-code` accept `--max-warnings <n>` and fail when findings exceed `n`.
+
+- `unused-code` passes the value to knip's [`--max-issues`](https://knip.dev/reference/cli#--max-issues). Knip configuration errors still fail.
+- `duplicate-code` counts jscpd clones. Do not pass jscpd's `--reporters`, `--output`, or `--silent` options with `--max-warnings`; `verifyx` sets them to produce the count.
 
 ```sh
 verifyx unused-code --max-warnings 5
 verifyx duplicate-code --max-warnings 10
 ```
-
-Without the flag both checks stay **zero-tolerance** (fail on any finding), exactly as before. When the budget is exceeded the check prints how many findings it found, the tool's normal report, and the usual failure hint. Because it's a flag on the script, it applies wherever the script carries it: put it in a `verify:<name>` script and both the bare `verifyx` gate and `verifyx all` pick it up (a `verify:<name>` script [overrides](#verifyx-all-run-everything) the matching built-in). Under `verifyx all` with no such script, the built-in runs at its zero-tolerance default. Passthrough still composes (e.g. `verifyx unused-code --max-warnings 5 -- --production`); the one exception is `duplicate-code`, where `--max-warnings` drives jscpd's reporter for counting, so also passing `--reporters`/`--output`/`--silent` after `--` conflicts (it fails with jscpd's own error rather than passing).
 
 ### `complexity`
 
@@ -329,7 +329,6 @@ const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
 // Run any single check by name, including the ones that shell out to an external tool.
 const lint = await getCheck('lint')?.runDefault()
 
-// unused-code / duplicate-code accept a max-warnings budget (pass iff findings <= maxWarnings).
 const unused = await getCheck('unused-code')?.runDefault({ maxWarnings: 5 })
 ```
 

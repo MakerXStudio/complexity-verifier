@@ -50,7 +50,6 @@ export type ExternalCheckSpec = {
    * script so a consumer can see and tweak them. Not baked into `runDefault`; only the scaffolded script carries them.
    */
   scaffoldArgs?: string
-  /** Present only for checks that support `--max-warnings`; defines how to count findings for the tolerance gate. */
   maxWarnings?: MaxWarningsSupport
 }
 
@@ -71,12 +70,6 @@ export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin'
 type CountBudget = Extract<MaxWarningsSupport, { strategy: 'count' }>
 type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'fixCommand' | 'docs' | 'transformOutput'>
 
-/**
- * Run a check whose tool has no native budget under a `--max-warnings` budget: count findings via the tool's
- * machine-readable output and pass while the count stays at or below the budget. On over-budget, print a one-line
- * summary, then the tool's normal report (re-run and shown regardless of its own exit code), then the failure hint.
- * A counting error fails loudly rather than passing silently.
- */
 export async function runCountedBudget(
   spec: CountableSpec,
   budget: CountBudget,
@@ -101,7 +94,6 @@ export async function runCountedBudget(
   const unit = count === 1 ? budget.unit : `${budget.unit}s`
   console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
   const command = appendArgs(selectCommand(spec, resolveMode()), extraArgs)
-  // Keep both channels: the report is on stdout, but an actionable config/module error may be on stderr.
   const { stdout, stderr } = await captureCommand(command, { env })
   const report = stdout + stderr
   if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
@@ -142,7 +134,6 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       if (maxWarnings !== undefined && spec.maxWarnings) {
         const budget = spec.maxWarnings
         if (budget.strategy === 'count') return runCountedBudget(spec, budget, maxWarnings, extraArgs, envWithLocalBin())
-        // A `flag`-strategy budget just augments the normal command with the tool's own budget option (budget wins last).
         return runReport(appendArgs(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
       }
       return runReport(appendArgs(selectCommand(spec, resolveMode()), extraArgs))

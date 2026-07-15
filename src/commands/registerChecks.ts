@@ -14,7 +14,6 @@ function collect(value: string, previous: string[]): string[] {
   return [...previous, value]
 }
 
-/** Commander arg parser for `--max-warnings <n>`: a safe non-negative integer, else a clean CLI error. */
 export function parseMaxWarnings(raw: string): number {
   const value = Number(raw.trim())
   if (!/^\d+$/.test(raw.trim()) || !Number.isSafeInteger(value)) {
