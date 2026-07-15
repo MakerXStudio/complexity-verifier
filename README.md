@@ -142,6 +142,18 @@ Each external check is configured through its **tool's own config file**, exactl
 - `circular-deps`: [skott options](https://github.com/antoine-coulon/skott)
 - `duplicate-code`: [`.jscpd.json` or `package.json#jscpd`](https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config)
 
+### `--max-warnings`
+
+`unused-code` and `duplicate-code` accept `--max-warnings <n>` and fail when findings exceed `n`.
+
+- `unused-code` passes the value to knip's [`--max-issues`](https://knip.dev/reference/cli#--max-issues). Knip configuration errors still fail.
+- `duplicate-code` counts jscpd clones. Do not pass jscpd's `--reporters`, `--output`, or `--silent` options with `--max-warnings`; `verifyx` sets them to produce the count.
+
+```sh
+verifyx unused-code --max-warnings 5
+verifyx duplicate-code --max-warnings 10
+```
+
 ### `complexity`
 
 ```sh
@@ -316,6 +328,8 @@ const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
 
 // Run any single check by name, including the ones that shell out to an external tool.
 const lint = await getCheck('lint')?.runDefault()
+
+const unused = await getCheck('unused-code')?.runDefault({ maxWarnings: 5 })
 ```
 
 Native checks also expose a direct runner (`runComplexity`, `runComments`, `runHardcodedColors`, `runForbiddenStrings`); external checks (`lint`, `format`, `check-types`, `unused-code`, `circular-deps`, `duplicate-code`) have no standalone function and are run via the registry (`getCheck(name)?.runDefault()`) or the orchestrators.

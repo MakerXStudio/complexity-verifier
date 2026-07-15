@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
-import { appendArgs, defineExternalCheck, externalFailureHint, selectCommand } from './external.ts'
+import { runCaptured } from '../shared/output.ts'
+import { appendArgs, defineExternalCheck, externalFailureHint, runCountedBudget, selectCommand } from './external.ts'
 
 const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
 const notFixable = { checkCommand: 'tsc --noEmit' }
@@ -77,5 +78,44 @@ describe('defineExternalCheck', () => {
   it('scaffolds a bare CLI call when there are no default args', () => {
     const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: 'knip', devDeps: [] })
     expect(knip.scaffold.script).toBe('verifyx unused-code')
+  })
+})
+
+describe('runCountedBudget', () => {
+  const spec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
+  const budget = (count: number, report = '') => ({ strategy: 'count' as const, unit: 'clone', count: async () => ({ count, report }) })
+
+  it('passes when the finding count is at or below the budget', async () => {
+    expect(await runCountedBudget(spec, budget(5), 5, [], {})).toEqual({ name: 'duplicate-code', ok: true })
+  })
+
+  it('fails over budget, printing the counting run’s report instead of re-running the tool', async () => {
+    const transformingSpec = { ...spec, transformOutput: (output: string) => output.toUpperCase() }
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const { result, output } = await runCaptured(() => runCountedBudget(transformingSpec, budget(6, 'clone report'), 5, [], {}))
+      expect(result.ok).toBe(false)
+      expect(output).toBe('CLONE REPORT')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('fails loudly when counting throws instead of silently passing', async () => {
+    const throwing = {
+      strategy: 'count' as const,
+      unit: 'clone',
+      count: async (): Promise<{ count: number; report: string }> => {
+        throw new Error('jscpd crashed')
+      },
+    }
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      const result = await runCountedBudget(spec, throwing, 5, [], {})
+      expect(result.ok).toBe(false)
+      expect(spy).toHaveBeenCalled()
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
