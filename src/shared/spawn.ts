@@ -2,53 +2,31 @@ import spawn from 'cross-spawn'
 
 import { emit, isCapturing } from './output.ts'
 
-// Honours single/double quotes so a quoted default like --ignore "**/*.test.*" stays one argv entry. Not a full shell parser.
-export function tokenizeCommand(command: string): string[] {
-  const argv: string[] = []
-  let current = ''
-  let started = false
-  let quote: '"' | "'" | null = null
-  for (const ch of command) {
-    if (quote) {
-      if (ch === quote) quote = null
-      else current += ch
-      continue
-    }
-    if (ch === '"' || ch === "'") {
-      quote = ch
-      started = true
-      continue
-    }
-    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
-      if (started) {
-        argv.push(current)
-        current = ''
-        started = false
-      }
-      continue
-    }
-    current += ch
-    started = true
+/** Append user-supplied arguments without parsing, splitting, or shell expansion. */
+export function appendArgv(command: readonly string[], extraArgs: readonly string[] = []): string[] {
+  return [...command, ...extraArgs]
+}
+
+/** Render the exact argv used by a process in a platform-neutral diagnostic form. */
+export function formatArgv(argv: readonly string[]): string {
+  return JSON.stringify(argv)
+}
+
+const SAFE_SHELL_ARG = /^[A-Za-z0-9_@+=:,./-]+$/
+const PORTABLE_QUOTED_ARG = /^[^"\\$`%!\r\n]*$/
+
+function formatShellArg(arg: string): string {
+  if (arg.length > 0 && SAFE_SHELL_ARG.test(arg)) return arg
+  if (!PORTABLE_QUOTED_ARG.test(arg)) {
+    throw new Error(`cannot safely serialize argument for both POSIX and Windows npm scripts: ${JSON.stringify(arg)}`)
   }
-  if (started) argv.push(current)
-  return argv
+  return `"${arg}"`
 }
 
-// Passthrough args stay as their own literal entries (never re-parsed) so globs/spaces/metacharacters reach the tool intact.
-export function buildArgv(command: string, extraArgs: readonly string[] = []): string[] {
-  return [...tokenizeCommand(command), ...extraArgs]
-}
-
-const SAFE_ARG = /^[A-Za-z0-9_@%+=:,./-]+$/
-
-function quoteForDisplay(arg: string): string {
-  if (arg.length > 0 && SAFE_ARG.test(arg)) return arg
-  return `"${arg.replace(/(["\\$`])/g, '\\$1')}"`
-}
-
-/** Render an argv array as a copy-pasteable, safely-quoted command line for diagnostics only (never executed). */
-export function formatCommand(argv: readonly string[]): string {
-  return argv.map(quoteForDisplay).join(' ')
+/** Serialize a trusted built-in argv for a cross-platform package.json script. */
+export function formatShellCommand(argv: readonly string[]): string {
+  if (argv.length === 0) throw new Error('argv command must have at least one entry (the executable)')
+  return argv.map(formatShellArg).join(' ')
 }
 
 let verboseMode = false
@@ -67,40 +45,39 @@ function shouldSuppress(quiet?: boolean): boolean {
   return !!quiet || !!process.env.CLAUDECODE
 }
 
-// A string runs through a shell (consumer verify:*/npm run scripts); an argv array runs with NO shell so entries reach the tool verbatim.
-export type Command = string | readonly string[]
-
 type SpawnInvocation = { file: string; args: string[]; shell: boolean }
 
-function toInvocation(command: Command): SpawnInvocation {
-  if (typeof command === 'string') return { file: command, args: [], shell: true }
-  const [file, ...args] = command
+function shellInvocation(command: string): SpawnInvocation {
+  return { file: command, args: [], shell: true }
+}
+
+function argvInvocation(argv: readonly string[]): SpawnInvocation {
+  const [file, ...args] = argv
   if (!file) throw new Error('argv command must have at least one entry (the executable)')
   return { file, args, shell: false }
 }
 
-export type RunCommandOptions = {
-  cwd?: string
-  env?: Record<string, string>
+type SpawnOptions = { cwd?: string; env?: Record<string, string> }
+
+function spawnChild(invocation: SpawnInvocation, stdio: 'inherit' | 'pipe' | ['ignore', 'pipe', 'pipe'], opts: SpawnOptions) {
+  return spawn(invocation.file, invocation.args, {
+    stdio,
+    shell: invocation.shell,
+    cwd: opts.cwd ?? process.cwd(),
+    env: opts.env ? { ...process.env, ...opts.env } : undefined,
+  })
+}
+
+export type RunCommandOptions = SpawnOptions & {
   quiet?: boolean
   /** Rewrite the command's buffered output before it is emitted (only applies when output is suppressed/buffered). */
   transform?: (output: string) => string
 }
 
-/**
- * Run a command, returning its exit code. Suppressed output (quiet, or under Claude Code) is buffered and
- * flushed to stdout only if the command fails, keeping passing runs quiet.
- */
-export function runCommand(command: Command, opts: RunCommandOptions = {}): Promise<number> {
+function runInvocation(invocation: SpawnInvocation, opts: RunCommandOptions): Promise<number> {
   return new Promise((resolve) => {
     const suppress = shouldSuppress(opts.quiet)
-    const { file, args, shell } = toInvocation(command)
-    const child = spawn(file, args, {
-      stdio: suppress ? 'pipe' : 'inherit',
-      shell,
-      cwd: opts.cwd ?? process.cwd(),
-      env: opts.env ? { ...process.env, ...opts.env } : undefined,
-    })
+    const child = spawnChild(invocation, suppress ? 'pipe' : 'inherit', opts)
     const chunks: Buffer[] = []
     if (suppress) {
       child.stdout?.on('data', (data: Buffer) => chunks.push(data))
@@ -122,18 +99,23 @@ export function runCommand(command: Command, opts: RunCommandOptions = {}): Prom
   })
 }
 
-export function captureCommand(
-  command: Command,
-  opts: { cwd?: string; env?: Record<string, string> } = {},
+/** Run a consumer-owned command through the platform shell. */
+export function runShellCommand(command: string, opts: RunCommandOptions = {}): Promise<number> {
+  return runInvocation(shellInvocation(command), opts)
+}
+
+/** Run a structured argv directly, using no shell. */
+export function runArgvCommand(argv: readonly string[], opts: RunCommandOptions = {}): Promise<number> {
+  return runInvocation(argvInvocation(argv), opts)
+}
+
+/** Run a structured argv directly and capture stdout/stderr separately. */
+export function captureArgvCommand(
+  argv: readonly string[],
+  opts: SpawnOptions = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const { file, args, shell } = toInvocation(command)
-    const child = spawn(file, args, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell,
-      cwd: opts.cwd ?? process.cwd(),
-      env: opts.env ? { ...process.env, ...opts.env } : undefined,
-    })
+    const child = spawnChild(argvInvocation(argv), ['ignore', 'pipe', 'pipe'], opts)
     const out: Buffer[] = []
     const err: Buffer[] = []
     child.stdout?.on('data', (data: Buffer) => out.push(data))

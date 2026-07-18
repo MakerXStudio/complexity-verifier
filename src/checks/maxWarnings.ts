@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-import { buildArgv, captureCommand } from '../shared/spawn.ts'
+import { captureArgvCommand } from '../shared/spawn.ts'
 
-type MaxWarningsCountContext = { extraArgs: string[]; env: Record<string, string>; checkCommand: string }
+type MaxWarningsCountContext = { argv: readonly string[]; env: Record<string, string> }
 
 /** The finding count plus the tool's rendered console report, so a failing budget can print it without a second run. */
 export type CountResult = { count: number; report: string }
@@ -29,8 +29,8 @@ export function countJscpdClones(report: { statistics?: { total?: { clones?: unk
 export async function jscpdCount(ctx: MaxWarningsCountContext): Promise<CountResult> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'verifyx-jscpd-'))
   try {
-    const argv = [...buildArgv(ctx.checkCommand, ctx.extraArgs), '--reporters', 'json', '--output', dir]
-    const { code, stdout, stderr } = await captureCommand(argv, { env: ctx.env })
+    const argv = [...ctx.argv, '--reporters', 'json', '--output', dir]
+    const { code, stdout, stderr } = await captureArgvCommand(argv, { env: ctx.env })
     const reportPath = path.join(dir, 'jscpd-report.json')
     if (!fs.existsSync(reportPath)) throw new Error(`jscpd produced no report (exit ${code})${stderr.trim() ? `: ${stderr.trim()}` : ''}`)
     const count = countJscpdClones(JSON.parse(fs.readFileSync(reportPath, 'utf8')))

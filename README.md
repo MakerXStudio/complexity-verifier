@@ -11,7 +11,7 @@ What makes it worth wiring in:
 
 - **Auto-fixes locally, fails in CI (same command).** Run it on your machine and it _fixes_ what it can (lint, formatting) instead of just complaining. Run it under CI and the identical command is check-only, so a PR can't merge with problems that should have been fixed.
 - **Silent when green, so it's cheap to loop.** A passing run prints nothing and exits `0`, with no output to burn an agent's tokens or bury the one failure that matters. Agents can run it as often as they like.
-- **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact command, and a docs link, so the agent (or you) knows what to fix and how instead of guessing.
+- **Failure output written for an agent to act on.** When a check fails it names the tool it ran, the exact argv, and a docs link, so the agent (or you) knows what to fix and how instead of guessing.
 - **Convention over configuration.** Checks are just `verify:*` npm scripts run in parallel. Add, drop, or override any of them; there's no bespoke config format to learn.
 
 ## Install
@@ -127,11 +127,11 @@ Flags on the bare `verifyx` command:
 | `circular-deps`     | external | Circular dependencies ([skott](https://github.com/antoine-coulon/skott)).                                                                                                                                                                                             |
 | `duplicate-code`    | external | Copy-paste detection ([jscpd](https://github.com/kucherenko/jscpd)).                                                                                                                                                                                                  |
 
-External checks shell out to their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
+External checks spawn their tool and **skip gracefully when it is not installed**; `verifyx init` installs the ones you opt into. They run the tool from your local `node_modules/.bin` regardless of how `verifyx` was invoked. `oxlint`/`oxfmt`/`tsc` are resolved if present; the rest are declared as optional `peerDependencies`.
 
-Because checks are named for their function, **on failure** an external check prints the tool it used, the exact command it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
+Because checks are named for their function, **on failure** an external check prints the tool it used, the exact argv it ran, and a docs link, so you (or an agent) can add the tool's config (e.g. `knip.json`) without guessing. On success it prints nothing (output is buffered and flushed only on failure, to keep runs quiet and cheap). If you override a check with your own `verify:<name>` script, a failure shows that `npm run verify:<name>` was what ran.
 
-**Passing extra arguments through.** When you run an external check directly, anything after `--` is forwarded verbatim to the underlying tool, so you can tweak an invocation without ejecting it: `verifyx circular-deps -- src/*.ts` runs skott against `src/*.ts`, `verifyx lint -- --quiet` passes `--quiet` to oxlint. `verifyx init` scaffolds `verify:circular-deps` as `verifyx circular-deps -- src/*.ts` (skott needs a target), so the default is visible in your `package.json` and easy to point at your own source layout.
+**Passing extra arguments through.** When you run an external check directly, anything after `--` is forwarded as literal argv entries to the underlying tool, so you can tweak an invocation without ejecting it: `verifyx circular-deps -- src/index.ts` asks skott to start at that file, while `verifyx lint -- --quiet` passes `--quiet` to oxlint. With no entrypoint, skott scans the current project, so `verifyx init` scaffolds the cross-platform default `verifyx circular-deps` without a shell glob.
 
 Each external check is configured through its **tool's own config file**, exactly as you would use that tool standalone:
 
@@ -326,7 +326,7 @@ import { analyzeComplexity, getCheck, runAll } from '@makerx/verify'
 // Run the maintainability analysis directly.
 const { failing } = analyzeComplexity({ pattern: 'src/**/*.ts', threshold: 50 })
 
-// Run any single check by name, including the ones that shell out to an external tool.
+// Run any single check by name, including the ones that spawn an external tool.
 const lint = await getCheck('lint')?.runDefault()
 
 const unused = await getCheck('unused-code')?.runDefault({ maxWarnings: 5 })
