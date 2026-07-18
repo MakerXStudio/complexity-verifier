@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { runCaptured } from '../shared/output.ts'
-import { appendArgs, defineExternalCheck, externalFailureHint, runCountedBudget, selectCommand } from './external.ts'
+import { buildArgv, defineExternalCheck, externalFailureHint, formatCommand, runCountedBudget, selectCommand } from './external.ts'
 
 const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
 const notFixable = { checkCommand: 'tsc --noEmit' }
@@ -38,14 +38,45 @@ describe('externalFailureHint', () => {
   })
 })
 
-describe('appendArgs', () => {
-  it('appends passthrough args verbatim, unquoted (so shell globs still expand)', () => {
-    expect(appendArgs('skott --showCircularDependencies', ['src/*.ts'])).toBe('skott --showCircularDependencies src/*.ts')
+describe('buildArgv', () => {
+  it('tokenises the base command, keeping a quoted default as a single literal entry', () => {
+    expect(buildArgv('jscpd --format typescript,tsx --ignore "**/*.test.*" -r consoleFull src')).toEqual([
+      'jscpd',
+      '--format',
+      'typescript,tsx',
+      '--ignore',
+      '**/*.test.*',
+      '-r',
+      'consoleFull',
+      'src',
+    ])
   })
 
-  it('returns the command unchanged when there are no extra args', () => {
-    expect(appendArgs('oxlint .', [])).toBe('oxlint .')
-    expect(appendArgs('oxlint .')).toBe('oxlint .')
+  it('appends each passthrough arg as its own literal entry (globs and spaces are never split or expanded)', () => {
+    expect(buildArgv('jscpd --ignore "**/*.test.*" src', ['--ignore', '**/generated/**', 'has space'])).toEqual([
+      'jscpd',
+      '--ignore',
+      '**/*.test.*',
+      'src',
+      '--ignore',
+      '**/generated/**',
+      'has space',
+    ])
+  })
+
+  it('preserves shell metacharacters in passthrough args verbatim', () => {
+    expect(buildArgv('tool', ['$HOME', ';whoami', 'a|b', '`id`'])).toEqual(['tool', '$HOME', ';whoami', 'a|b', '`id`'])
+  })
+
+  it('returns just the tokenised command when there are no extra args', () => {
+    expect(buildArgv('oxlint .', [])).toEqual(['oxlint', '.'])
+    expect(buildArgv('oxlint .')).toEqual(['oxlint', '.'])
+  })
+})
+
+describe('formatCommand', () => {
+  it('renders a copy-pasteable, quoted command line for diagnostics without changing what runs', () => {
+    expect(formatCommand(['jscpd', '--ignore', '**/generated/**', 'has space'])).toBe('jscpd --ignore "**/generated/**" "has space"')
   })
 })
 

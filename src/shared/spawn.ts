@@ -2,9 +2,53 @@ import { spawn } from 'node:child_process'
 
 import { emit, isCapturing } from './output.ts'
 
-// Keep passthrough globs unquoted for shell expansion.
-export function appendArgs(command: string, extraArgs: readonly string[] = []): string {
-  return extraArgs.length > 0 ? `${command} ${extraArgs.join(' ')}` : command
+// Honours single/double quotes so a quoted default like --ignore "**/*.test.*" stays one argv entry. Not a full shell parser.
+export function tokenizeCommand(command: string): string[] {
+  const argv: string[] = []
+  let current = ''
+  let started = false
+  let quote: '"' | "'" | null = null
+  for (const ch of command) {
+    if (quote) {
+      if (ch === quote) quote = null
+      else current += ch
+      continue
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch
+      started = true
+      continue
+    }
+    if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') {
+      if (started) {
+        argv.push(current)
+        current = ''
+        started = false
+      }
+      continue
+    }
+    current += ch
+    started = true
+  }
+  if (started) argv.push(current)
+  return argv
+}
+
+// Passthrough args stay as their own literal entries (never re-parsed) so globs/spaces/metacharacters reach the tool intact.
+export function buildArgv(command: string, extraArgs: readonly string[] = []): string[] {
+  return [...tokenizeCommand(command), ...extraArgs]
+}
+
+const SAFE_ARG = /^[A-Za-z0-9_@%+=:,./-]+$/
+
+function quoteForDisplay(arg: string): string {
+  if (arg.length > 0 && SAFE_ARG.test(arg)) return arg
+  return `"${arg.replace(/(["\\$`])/g, '\\$1')}"`
+}
+
+/** Render an argv array as a copy-pasteable, safely-quoted command line for diagnostics only (never executed). */
+export function formatCommand(argv: readonly string[]): string {
+  return argv.map(quoteForDisplay).join(' ')
 }
 
 let verboseMode = false
@@ -23,6 +67,18 @@ function shouldSuppress(quiet?: boolean): boolean {
   return !!quiet || !!process.env.CLAUDECODE
 }
 
+// A string runs through a shell (consumer verify:*/npm run scripts); an argv array runs with NO shell so entries reach the tool verbatim.
+export type Command = string | readonly string[]
+
+type SpawnInvocation = { file: string; args: string[]; shell: boolean }
+
+function toInvocation(command: Command): SpawnInvocation {
+  if (typeof command === 'string') return { file: command, args: [], shell: true }
+  const [file, ...args] = command
+  if (!file) throw new Error('argv command must have at least one entry (the executable)')
+  return { file, args, shell: false }
+}
+
 export type RunCommandOptions = {
   cwd?: string
   env?: Record<string, string>
@@ -32,15 +88,16 @@ export type RunCommandOptions = {
 }
 
 /**
- * Run a shell command, returning its exit code. Suppressed output (quiet, or under Claude Code) is buffered
- * and flushed to stdout only if the command fails, keeping passing runs quiet.
+ * Run a command, returning its exit code. Suppressed output (quiet, or under Claude Code) is buffered and
+ * flushed to stdout only if the command fails, keeping passing runs quiet.
  */
-export function runCommand(command: string, opts: RunCommandOptions = {}): Promise<number> {
+export function runCommand(command: Command, opts: RunCommandOptions = {}): Promise<number> {
   return new Promise((resolve) => {
     const suppress = shouldSuppress(opts.quiet)
-    const child = spawn(command, [], {
+    const { file, args, shell } = toInvocation(command)
+    const child = spawn(file, args, {
       stdio: suppress ? 'pipe' : 'inherit',
-      shell: true,
+      shell,
       cwd: opts.cwd ?? process.cwd(),
       env: opts.env ? { ...process.env, ...opts.env } : undefined,
     })
@@ -63,13 +120,14 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
 }
 
 export function captureCommand(
-  command: string,
+  command: Command,
   opts: { cwd?: string; env?: Record<string, string> } = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn(command, [], {
+    const { file, args, shell } = toInvocation(command)
+    const child = spawn(file, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
+      shell,
       cwd: opts.cwd ?? process.cwd(),
       env: opts.env ? { ...process.env, ...opts.env } : undefined,
     })

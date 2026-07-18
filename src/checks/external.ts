@@ -4,11 +4,11 @@ import path from 'node:path'
 import { color } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { emit } from '../shared/output.ts'
-import { appendArgs, runCommand } from '../shared/spawn.ts'
+import { buildArgv, formatCommand, runCommand } from '../shared/spawn.ts'
 import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
 
-export { appendArgs } from '../shared/spawn.ts'
+export { buildArgv, formatCommand } from '../shared/spawn.ts'
 
 const BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
 
@@ -95,7 +95,7 @@ export async function runCountedBudget(
   const unit = count === 1 ? budget.unit : `${budget.unit}s`
   console.error(color.dim(`↳ ${spec.name}: ${count} ${unit} found, exceeds --max-warnings ${maxWarnings}.`))
   if (report) emit(spec.transformOutput ? spec.transformOutput(report) : report)
-  console.error(color.dim(externalFailureHint(spec, appendArgs(spec.checkCommand, extraArgs))))
+  console.error(color.dim(externalFailureHint(spec, formatCommand(buildArgv(spec.checkCommand, extraArgs)))))
   return { name: spec.name, ok: false }
 }
 
@@ -124,17 +124,17 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
         return { name: spec.name, ok: true, skipped: true }
       }
       // quiet: buffer the tool's output and flush only on failure (streamed live under --verbose).
-      const runReport = async (command: string): Promise<CheckResult> => {
-        const code = await runCommand(command, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
-        if (code !== 0) console.error(color.dim(externalFailureHint(spec, command)))
+      const runReport = async (argv: string[]): Promise<CheckResult> => {
+        const code = await runCommand(argv, { env: envWithLocalBin(), quiet: true, transform: spec.transformOutput })
+        if (code !== 0) console.error(color.dim(externalFailureHint(spec, formatCommand(argv))))
         return { name: spec.name, ok: code === 0 }
       }
       if (maxWarnings !== undefined && spec.maxWarnings) {
         const budget = spec.maxWarnings
         if (budget.strategy === 'count') return runCountedBudget(spec, budget, maxWarnings, extraArgs, envWithLocalBin())
-        return runReport(appendArgs(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
+        return runReport(buildArgv(selectCommand(spec, resolveMode()), [...extraArgs, ...budget.toArgs(maxWarnings)]))
       }
-      return runReport(appendArgs(selectCommand(spec, resolveMode()), extraArgs))
+      return runReport(buildArgv(selectCommand(spec, resolveMode()), extraArgs))
     },
   }
 }
