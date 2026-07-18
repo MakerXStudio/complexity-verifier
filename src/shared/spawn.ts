@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process'
+import spawn from 'cross-spawn'
 
 import { emit, isCapturing } from './output.ts'
 
@@ -115,7 +115,10 @@ export function runCommand(command: Command, opts: RunCommandOptions = {}): Prom
       }
       resolve(exitCode)
     })
-    child.on('error', () => resolve(127))
+    child.on('error', (error) => {
+      emit(`${String(error)}\n`, 'err')
+      resolve(127)
+    })
   })
 }
 
@@ -138,6 +141,6 @@ export function captureCommand(
     child.on('close', (code) => {
       resolve({ code: code ?? 1, stdout: Buffer.concat(out).toString(), stderr: Buffer.concat(err).toString() })
     })
-    child.on('error', () => resolve({ code: 127, stdout: '', stderr: '' }))
+    child.on('error', (error) => resolve({ code: 127, stdout: '', stderr: String(error) }))
   })
 }
