@@ -67,6 +67,11 @@ describe('defineExternalCheck', () => {
     const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: ['knip'], devDeps: [] })
     expect(knip.scaffold.script).toBe('verifyx unused-code')
   })
+
+  it('serializes eject lazily, so an unserializable command fails eject rather than check construction', () => {
+    const check = defineExternalCheck({ name: 'x', description: '', bin: 'tool', checkCommand: ['tool', '$HOME'], devDeps: [] })
+    expect(() => check.eject).toThrow('cannot safely serialize')
+  })
 })
 
 describe('runCountedBudget', () => {

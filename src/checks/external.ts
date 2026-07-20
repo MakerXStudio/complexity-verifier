@@ -8,7 +8,8 @@ import { appendArgv, formatArgv, formatShellCommand, runArgvCommand } from '../s
 import { type MaxWarningsSupport, withinBudget } from './maxWarnings.ts'
 import type { Check, CheckMode, CheckResult, RunDefaultOptions } from './types.ts'
 
-const BIN_EXTENSIONS = ['', '.cmd', '.ps1', '.exe']
+// Mirror the launcher's resolution (cross-spawn → which + PATHEXT) so "installed" and "runnable" agree.
+const BIN_EXTENSIONS = process.platform === 'win32' ? (process.env.PATHEXT ?? '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean) : ['']
 
 /** True when a project-local binary is installed under node_modules/.bin (cross-platform). */
 function hasLocalBin(bin: string, cwd: string = process.cwd()): boolean {
@@ -106,10 +107,13 @@ export function defineExternalCheck(spec: ExternalCheckSpec): Check {
       script: `verifyx ${spec.name}`,
       devDeps: spec.devDeps,
     },
-    // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts.
-    eject: {
-      check: formatShellCommand(spec.checkCommand),
-      fix: spec.fixCommand ? formatShellCommand(spec.fixCommand) : undefined,
+    // `verifyx eject <name>` inlines these raw commands into the consumer's verify:* scripts. Lazy so
+    // formatShellCommand's unserializable-arg throw fires on eject only, not when CHECKS is built at import.
+    get eject() {
+      return {
+        check: formatShellCommand(spec.checkCommand),
+        fix: spec.fixCommand ? formatShellCommand(spec.fixCommand) : undefined,
+      }
     },
     async runDefault({ extraArgs = [], maxWarnings }: RunDefaultOptions = {}): Promise<CheckResult> {
       if (!hasLocalBin(spec.bin)) {

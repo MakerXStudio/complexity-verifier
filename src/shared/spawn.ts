@@ -23,9 +23,13 @@ function formatShellArg(arg: string): string {
   return `"${arg}"`
 }
 
+function assertNonEmptyArgv(argv: readonly string[]): asserts argv is readonly [string, ...string[]] {
+  if (argv.length === 0) throw new Error('argv command must have at least one entry (the executable)')
+}
+
 /** Serialize a trusted built-in argv for a cross-platform package.json script. */
 export function formatShellCommand(argv: readonly string[]): string {
-  if (argv.length === 0) throw new Error('argv command must have at least one entry (the executable)')
+  assertNonEmptyArgv(argv)
   return argv.map(formatShellArg).join(' ')
 }
 
@@ -52,8 +56,8 @@ function shellInvocation(command: string): SpawnInvocation {
 }
 
 function argvInvocation(argv: readonly string[]): SpawnInvocation {
+  assertNonEmptyArgv(argv)
   const [file, ...args] = argv
-  if (!file) throw new Error('argv command must have at least one entry (the executable)')
   return { file, args, shell: false }
 }
 
