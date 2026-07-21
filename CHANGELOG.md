@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.3.0](https://github.com/MakerXStudio/verify/compare/v1.2.0...v1.3.0) (2026-07-21)
+
+
+### Features
+
+* reduce unused-code and duplicate-code false positives ([#18](https://github.com/MakerXStudio/verify/issues/18)) ([5d01501](https://github.com/MakerXStudio/verify/commit/5d01501a26add32e4a2f50854db56cd71f128600))
+* support max-warnings for unused code and duplicate code ([e089c85](https://github.com/MakerXStudio/verify/commit/e089c85ac841510b8f6322de92849863dea06e74))
+
+
+### Bug Fixes
+
+* cross-platform external check commands ([#17](https://github.com/MakerXStudio/verify/issues/17)) ([f432b9c](https://github.com/MakerXStudio/verify/commit/f432b9ca6f1603d38e9af9fc4c514bff71ea162d))
+* **init:** skip installed deps, isolate install failures, pre-select prompt defaults ([7c5f7da](https://github.com/MakerXStudio/verify/commit/7c5f7da6c039ef98617b70160d7b93c6672fac7e))
+* **init:** skip installed deps, isolate install failures, pre-select prompt defaults ([cb5849a](https://github.com/MakerXStudio/verify/commit/cb5849a64ee9d3c749992303a995050e1def3009))
+
 ## [1.2.0](https://github.com/MakerXStudio/verify/compare/v1.1.0...v1.2.0) (2026-07-09)
 
 
