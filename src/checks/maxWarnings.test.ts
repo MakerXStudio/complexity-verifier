@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 
-import { countJscpdClones, withinBudget } from './maxWarnings.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const captureArgvCommand = vi.hoisted(() => vi.fn())
+
+vi.mock('../shared/spawn.ts', () => ({ captureArgvCommand }))
+
+import { countJscpdClones, jscpdCount, withinBudget } from './maxWarnings.ts'
 
 function clone(aName: string, aStart: number, aEnd: number, bName: string, bStart: number, bEnd: number) {
   return {
@@ -8,6 +15,18 @@ function clone(aName: string, aStart: number, aEnd: number, bName: string, bStar
     secondFile: { name: bName, start: bStart, end: bEnd },
   }
 }
+
+function mockJscpdReport(duplicates: ReturnType<typeof clone>[]) {
+  captureArgvCommand.mockImplementationOnce(async (argv: readonly string[]) => {
+    const outputIndex = argv.indexOf('--output')
+    const outputDir = argv[outputIndex + 1]
+    if (!outputDir) throw new Error('missing jscpd output directory')
+    fs.writeFileSync(path.join(outputDir, 'jscpd-report.json'), JSON.stringify({ duplicates }))
+    return { code: 1, stdout: 'clone report\n', stderr: '' }
+  })
+}
+
+afterEach(() => captureArgvCommand.mockReset())
 
 describe('countJscpdClones', () => {
   it('reads the total clone count from statistics when duplicates lack range info', () => {
@@ -61,6 +80,26 @@ describe('countJscpdClones', () => {
   it('rejects a non-integer or negative clone count when there is no duplicates array', () => {
     expect(() => countJscpdClones({ statistics: { total: { clones: -1 } } })).toThrow(/unrecognised/)
     expect(() => countJscpdClones({ statistics: { total: { clones: 2.5 } } })).toThrow(/unrecognised/)
+  })
+})
+
+describe('jscpdCount', () => {
+  it('reports both counts when raw clones merge into fewer regions', async () => {
+    mockJscpdReport([clone('a.ts', 1, 20, 'b.ts', 1, 20), clone('a.ts', 5, 25, 'c.ts', 1, 20)])
+
+    const result = await jscpdCount({ argv: ['jscpd', 'src'], env: {} })
+
+    expect(result.count).toBe(1)
+    expect(result.report).toContain('1 distinct duplicated region(s) merged from 2 raw jscpd clone(s).')
+  })
+
+  it('omits the merged-count summary when no clones were merged', async () => {
+    mockJscpdReport([clone('a.ts', 1, 20, 'b.ts', 1, 20)])
+
+    const result = await jscpdCount({ argv: ['jscpd', 'src'], env: {} })
+
+    expect(result.count).toBe(1)
+    expect(result.report).toBe('clone report\n')
   })
 })
 
