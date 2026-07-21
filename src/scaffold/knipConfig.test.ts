@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { detectSystemBinaries } from './detectSystemBinaries.ts'
 import { ensureKnipIgnores } from './knipConfig.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
 
@@ -67,5 +68,90 @@ describe('ensureKnipIgnores', () => {
     ensureKnipIgnores(dir, ['oxlint'], results)
     expect(results).toEqual([])
     expect(fs.existsSync(path.join(dir, 'knip.json'))).toBe(false)
+  })
+
+  it('writes detected system binaries to ignoreBinaries', () => {
+    const results: ManagedFileResult[] = []
+    ensureKnipIgnores(dir, [], results, ['uv'])
+    expect(results[0]?.action).toBe('created')
+    expect((readKnip() as { ignoreBinaries?: string[] }).ignoreBinaries).toEqual(['uv'])
+  })
+
+  it('merges binaries into an existing knip.json alongside dependencies', () => {
+    fs.writeFileSync(path.join(dir, 'knip.json'), JSON.stringify({ ignoreDependencies: ['oxlint'], ignoreBinaries: ['az'] }))
+    const results: ManagedFileResult[] = []
+    ensureKnipIgnores(dir, ['jscpd'], results, ['az', 'uv'])
+    const cfg = readKnip() as { ignoreDependencies?: string[]; ignoreBinaries?: string[] }
+    expect(cfg.ignoreDependencies).toEqual(['oxlint', 'jscpd'])
+    expect(cfg.ignoreBinaries).toEqual(['az', 'uv'])
+  })
+})
+
+describe('detectSystemBinaries', () => {
+  function writeScripts(scripts: Record<string, string>) {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'scratch', scripts }))
+  }
+
+  it('finds a known system binary invoked in a compound script', () => {
+    writeScripts({ 'evals:local': 'cd evals && uv run deepeval test run .' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('ignores binaries knip already ignores globally and npm-installed bins', () => {
+    writeScripts({ up: 'docker compose up', tf: 'terraform apply' })
+    fs.mkdirSync(path.join(dir, 'node_modules', '.bin'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'node_modules', '.bin', 'terraform'), '')
+    expect(detectSystemBinaries(dir)).toEqual([])
+  })
+
+  it('skips env-var assignments to find the command word', () => {
+    writeScripts({ gen: 'NODE_ENV=test uv run pytest' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('finds a system binary invoked through a spawning wrapper', () => {
+    writeScripts({ test: 'cross-env NODE_ENV=test uv run pytest' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('finds system binaries invoked in expansions throughout a command', () => {
+    writeScripts({
+      expansions: '$(python --version) VERSION=$(python3 --version) echo "$(ruby --version)" <(terraform version)',
+    })
+    expect(detectSystemBinaries(dir)).toEqual(['python', 'python3', 'ruby', 'terraform'])
+  })
+
+  it('finds system binaries invoked in redirect expansions', () => {
+    writeScripts({
+      compound: '{ echo ok; } > >(ruby --version)',
+      heredoc: 'cat <<EOF\n$(python --version)\nEOF',
+      redirects: 'cat < <(uv run foo) > >(terraform fmt)',
+    })
+    expect(detectSystemBinaries(dir)).toEqual(['python', 'ruby', 'terraform', 'uv'])
+  })
+
+  it('ignores same-named packages declared in any dependency field before installation', () => {
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        name: 'scratch',
+        scripts: { tools: 'python --version && python3 --version && ruby --version && terraform version && uv --version' },
+        dependencies: { python: '*' },
+        devDependencies: { python3: '*' },
+        peerDependencies: { ruby: '*' },
+        optionalDependencies: { terraform: '*' },
+      }),
+    )
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('does not report a system binary that only appears as an argument', () => {
+    writeScripts({ docs: 'echo uv is required' })
+    expect(detectSystemBinaries(dir)).toEqual([])
+  })
+
+  it('does not report calls to shell functions as system binaries', () => {
+    writeScripts({ local: 'python() { echo hi; }; python' })
+    expect(detectSystemBinaries(dir)).toEqual([])
   })
 })

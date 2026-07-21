@@ -36,6 +36,11 @@ describe('externalFailureHint', () => {
     expect(hint).toContain('["skott","src"]')
     expect(hint).not.toContain('undefined')
   })
+
+  it('appends the failure advice when the check declares one', () => {
+    const hint = externalFailureHint({ name: 'unused-code', bin: 'knip', failureAdvice: 'check for dynamic loading' }, ['knip'])
+    expect(hint).toContain('check for dynamic loading')
+  })
 })
 
 describe('defineExternalCheck', () => {

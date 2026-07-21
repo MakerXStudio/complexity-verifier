@@ -40,6 +40,8 @@ export type ExternalCheckSpec = {
   recommended?: boolean
   /** Docs / config reference for the underlying tool, surfaced when the check fails. */
   docs?: string
+  /** Extra guidance printed on failure, e.g. how to recognise and suppress the tool's known false positives. */
+  failureAdvice?: string
   /** Extra guard beyond bin presence (e.g. require a tsconfig). */
   canRun?: () => boolean
   /** Rewrite the tool's captured output before it is printed, e.g. to strip a tool's own hardcoded colouring. */
@@ -57,12 +59,16 @@ export function selectCommand(spec: Pick<ExternalCheckSpec, 'checkCommand' | 'fi
  * tool is otherwise hidden), the exact argv that ran, and where to configure it — so an agent can set up
  * the tool's config file (e.g. knip.json) without guessing.
  */
-export function externalFailureHint(spec: Pick<ExternalCheckSpec, 'name' | 'bin' | 'docs'>, argv: readonly string[]): string {
-  return `↳ ${spec.name} uses ${spec.bin}: ran argv \`${formatArgv(argv)}\`. Configure ${spec.bin}${spec.docs ? ` — ${spec.docs}` : ''}.`
+export function externalFailureHint(
+  spec: Pick<ExternalCheckSpec, 'name' | 'bin' | 'docs' | 'failureAdvice'>,
+  argv: readonly string[],
+): string {
+  const hint = `↳ ${spec.name} uses ${spec.bin}: ran argv \`${formatArgv(argv)}\`. Configure ${spec.bin}${spec.docs ? ` — ${spec.docs}` : ''}.`
+  return spec.failureAdvice ? `${hint}\n↳ ${spec.failureAdvice}` : hint
 }
 
 type CountBudget = Extract<MaxWarningsSupport, { strategy: 'count' }>
-type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'docs' | 'transformOutput'>
+type CountableSpec = Pick<ExternalCheckSpec, 'name' | 'bin' | 'checkCommand' | 'docs' | 'failureAdvice' | 'transformOutput'>
 
 export async function runCountedBudget(
   spec: CountableSpec,
