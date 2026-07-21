@@ -121,6 +121,15 @@ describe('detectSystemBinaries', () => {
     expect(detectSystemBinaries(dir)).toEqual(['python', 'python3', 'ruby', 'terraform'])
   })
 
+  it('finds system binaries invoked in redirect expansions', () => {
+    writeScripts({
+      compound: '{ echo ok; } > >(ruby --version)',
+      heredoc: 'cat <<EOF\n$(python --version)\nEOF',
+      redirects: 'cat < <(uv run foo) > >(terraform fmt)',
+    })
+    expect(detectSystemBinaries(dir)).toEqual(['python', 'ruby', 'terraform', 'uv'])
+  })
+
   it('ignores same-named packages declared in any dependency field before installation', () => {
     fs.writeFileSync(
       path.join(dir, 'package.json'),

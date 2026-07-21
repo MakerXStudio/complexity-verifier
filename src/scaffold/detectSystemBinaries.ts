@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { type Command, type Node, parse, type Script, type Word } from 'unbash'
+import { type Node, parse, type Script, type Word } from 'unbash'
 
 type PackageJson = {
   scripts?: Record<string, string>
@@ -61,7 +61,16 @@ function collectInvokedBinariesFromScript(script: Script, invoked: Set<string>, 
   }
 
   for (const statement of script.commands) {
-    for (const command of walkCommands(statement)) {
+    for (const node of walkNodes(statement)) {
+      if ('redirects' in node) {
+        for (const redirect of node.redirects) {
+          if (redirect.target) collectExpansionBinaries(redirect.target, invoked, definedFunctions)
+          if (redirect.body) collectExpansionBinaries(redirect.body, invoked, definedFunctions)
+        }
+      }
+      if (node.type !== 'Command') continue
+
+      const command = node
       if (command.name) collectExpansionBinaries(command.name, invoked, definedFunctions)
       for (const prefix of command.prefix) {
         if (prefix.value) collectExpansionBinaries(prefix.value, invoked, definedFunctions)
@@ -84,43 +93,41 @@ function collectInvokedBinariesFromScript(script: Script, invoked: Set<string>, 
   }
 }
 
-function* walkCommands(node: Node): Generator<Command> {
+function* walkNodes(node: Node): Generator<Node> {
+  yield node
   switch (node.type) {
-    case 'Command':
-      yield node
-      break
     case 'AndOr':
     case 'Pipeline':
-      for (const command of node.commands) yield* walkCommands(command)
+      for (const command of node.commands) yield* walkNodes(command)
       break
     case 'If':
-      yield* walkCommands(node.clause)
-      yield* walkCommands(node.then)
-      if (node.else) yield* walkCommands(node.else)
+      yield* walkNodes(node.clause)
+      yield* walkNodes(node.then)
+      if (node.else) yield* walkNodes(node.else)
       break
     case 'For':
     case 'ArithmeticFor':
     case 'Select':
     case 'Subshell':
     case 'BraceGroup':
-      yield* walkCommands(node.body)
+      yield* walkNodes(node.body)
       break
     case 'While':
-      yield* walkCommands(node.clause)
-      yield* walkCommands(node.body)
+      yield* walkNodes(node.clause)
+      yield* walkNodes(node.body)
       break
     case 'CompoundList':
-      for (const statement of node.commands) yield* walkCommands(statement)
+      for (const statement of node.commands) yield* walkNodes(statement)
       break
     case 'Case':
-      for (const item of node.items) yield* walkCommands(item.body)
+      for (const item of node.items) yield* walkNodes(item.body)
       break
     case 'Function':
     case 'Coproc':
-      yield* walkCommands(node.body)
+      yield* walkNodes(node.body)
       break
     case 'Statement':
-      yield* walkCommands(node.command)
+      yield* walkNodes(node.command)
       break
   }
 }
