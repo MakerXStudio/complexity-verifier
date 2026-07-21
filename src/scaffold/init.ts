@@ -3,7 +3,7 @@ import path from 'node:path'
 import { getCheck } from '../checks/registry.ts'
 import type { Check } from '../checks/types.ts'
 import { type AgentTarget, writeAgentFiles } from './agentFiles.ts'
-import { ensureKnipIgnores } from './knipConfig.ts'
+import { detectSystemBinaries, ensureKnipIgnores } from './knipConfig.ts'
 import { addVerifyScripts } from './packageScripts.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
 
@@ -47,7 +47,7 @@ export function applyInit(opts: InitOptions): InitResult {
       .filter((check): check is Check => !!check && check.kind === 'external' && check.name !== 'unused-code')
       .flatMap((check) => check.scaffold.devDeps ?? [])
       .filter((dep) => dep !== 'typescript')
-    ensureKnipIgnores(opts.cwd, [...new Set(toolDeps)], agentFiles)
+    ensureKnipIgnores(opts.cwd, [...new Set(toolDeps)], agentFiles, detectSystemBinaries(opts.cwd))
   }
 
   return { addedScripts, devDeps: [...new Set(devDeps)], agentFiles }

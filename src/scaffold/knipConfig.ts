@@ -7,7 +7,46 @@ import type { ManagedFileResult } from './writeManaged.ts'
 const CODE_CONFIGS = ['knip.ts', 'knip.js', 'knip.config.ts', 'knip.config.js', 'knip.jsonc']
 const SCHEMA = 'https://unpkg.com/knip/schema.json'
 
-type KnipConfig = { ignoreDependencies?: string[] } & Record<string, unknown>
+type KnipConfig = { ignoreDependencies?: string[]; ignoreBinaries?: string[] } & Record<string, unknown>
+
+// context: tools knip flags as unlisted binaries because they are system-installed, not npm bins, and are
+// missing from knip's own IGNORED_GLOBAL_BINARIES (which already covers git, docker, aws, cargo, ...).
+const SYSTEM_BINARIES = [
+  'az',
+  'dotnet',
+  'gcloud',
+  'go',
+  'helm',
+  'kubectl',
+  'make',
+  'pip',
+  'pip3',
+  'pipx',
+  'poetry',
+  'python',
+  'python3',
+  'ruby',
+  'terraform',
+  'uv',
+  'uvx',
+]
+
+export function detectSystemBinaries(cwd: string): string[] {
+  const pkgPath = path.join(cwd, 'package.json')
+  if (!fs.existsSync(pkgPath)) return []
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { scripts?: Record<string, string> }
+  const invoked = new Set<string>()
+  for (const script of Object.values(pkg.scripts ?? {})) {
+    for (const segment of script.split(/&&|\|\||;|\|/)) {
+      const command = segment
+        .trim()
+        .split(/\s+/)
+        .find((word) => word !== '' && !word.includes('='))
+      if (command) invoked.add(command)
+    }
+  }
+  return SYSTEM_BINARIES.filter((bin) => invoked.has(bin) && !fs.existsSync(path.join(cwd, 'node_modules', '.bin', bin)))
+}
 
 /** Append any missing `deps` to `existing`, preserving order; report whether anything changed. */
 function addMissing(existing: string[] | undefined, deps: readonly string[]): { list: string[]; changed: boolean } {
@@ -22,26 +61,33 @@ function addMissing(existing: string[] | undefined, deps: readonly string[]): { 
   return { list, changed }
 }
 
-function mergeInto(config: KnipConfig, deps: readonly string[]): boolean {
-  const { list, changed } = addMissing(config.ignoreDependencies, deps)
-  if (changed) config.ignoreDependencies = list
-  return changed
+function mergeInto(config: KnipConfig, deps: readonly string[], binaries: readonly string[]): boolean {
+  const depMerge = addMissing(config.ignoreDependencies, deps)
+  if (depMerge.changed) config.ignoreDependencies = depMerge.list
+  const binMerge = addMissing(config.ignoreBinaries, binaries)
+  if (binMerge.changed) config.ignoreBinaries = binMerge.list
+  return depMerge.changed || binMerge.changed
 }
 
 /**
- * Ensure the project's knip config ignores `deps` — the tools verifyx invokes at runtime (via node_modules/.bin),
- * which knip can't see and would otherwise flag as unused. Adds only what's missing (idempotent), never removes
+ * Ensure the project's knip config ignores `deps` (the tools verifyx invokes at runtime, which knip can't see)
+ * and `binaries` (system tools its scripts call). Adds only what's missing (idempotent), never removes
  * or rewrites unrelated content. Merges into an existing `knip.json` or `package.json#knip`, creates a minimal
  * `knip.json` if there's no config, and leaves code-based configs (knip.ts/js) untouched.
  */
-export function ensureKnipIgnores(cwd: string, deps: readonly string[], results: ManagedFileResult[]): void {
-  if (deps.length === 0) return
+export function ensureKnipIgnores(
+  cwd: string,
+  deps: readonly string[],
+  results: ManagedFileResult[],
+  binaries: readonly string[] = [],
+): void {
+  if (deps.length === 0 && binaries.length === 0) return
   if (CODE_CONFIGS.some((file) => fs.existsSync(path.join(cwd, file)))) return
 
   const jsonPath = path.join(cwd, 'knip.json')
   if (fs.existsSync(jsonPath)) {
     const config = JSON.parse(fs.readFileSync(jsonPath, 'utf-8')) as KnipConfig
-    const changed = mergeInto(config, deps)
+    const changed = mergeInto(config, deps, binaries)
     if (changed) fs.writeFileSync(jsonPath, `${JSON.stringify(config, null, 2)}\n`)
     results.push({ path: jsonPath, action: changed ? 'updated' : 'unchanged' })
     return
@@ -50,12 +96,15 @@ export function ensureKnipIgnores(cwd: string, deps: readonly string[], results:
   const pkgPath = path.join(cwd, 'package.json')
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { knip?: KnipConfig } & Record<string, unknown>
   if (pkg.knip && typeof pkg.knip === 'object') {
-    const changed = mergeInto(pkg.knip, deps)
+    const changed = mergeInto(pkg.knip, deps, binaries)
     if (changed) fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
     results.push({ path: pkgPath, action: changed ? 'updated' : 'unchanged' })
     return
   }
 
-  fs.writeFileSync(jsonPath, `${JSON.stringify({ $schema: SCHEMA, ignoreDependencies: [...deps] }, null, 2)}\n`)
+  const fresh: KnipConfig = { $schema: SCHEMA }
+  if (deps.length > 0) fresh.ignoreDependencies = [...deps]
+  if (binaries.length > 0) fresh.ignoreBinaries = [...binaries]
+  fs.writeFileSync(jsonPath, `${JSON.stringify(fresh, null, 2)}\n`)
   results.push({ path: jsonPath, action: 'created' })
 }

@@ -70,6 +70,8 @@ export const CHECKS: Check[] = [
     checkCommand: ['knip', '--no-progress', '--treat-config-hints-as-errors'],
     devDeps: ['knip'],
     docs: 'https://knip.dev/reference/configuration',
+    failureAdvice:
+      'An "unused" finding can be a false positive when the file is loaded dynamically (directory scan + require(), glob-registered ORM entities) or a script calls a system binary. Verify before deleting: suppress genuinely runtime-loaded files via knip `entry` globs and system tools via `ignoreBinaries` — never delete a file to satisfy this check without checking how it is loaded.',
     maxWarnings: { strategy: 'flag', toArgs: (n) => ['--max-issues', String(n)] },
   }),
   defineExternalCheck({
@@ -90,7 +92,7 @@ export const CHECKS: Check[] = [
     // NO_COLOR/FORCE_COLOR, so strip the red foreground from its output; the table renders in the default colour.
     transformOutput: withoutRed,
     docs: 'https://github.com/kucherenko/jscpd/tree/master/apps/jscpd#config',
-    maxWarnings: { strategy: 'count', unit: 'clone', count: jscpdCount },
+    maxWarnings: { strategy: 'count', unit: 'duplicated region', count: jscpdCount },
   }),
 ]
 

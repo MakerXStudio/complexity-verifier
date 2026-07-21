@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { ensureKnipIgnores } from './knipConfig.ts'
+import { detectSystemBinaries, ensureKnipIgnores } from './knipConfig.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
 
 let dir: string
@@ -67,5 +67,49 @@ describe('ensureKnipIgnores', () => {
     ensureKnipIgnores(dir, ['oxlint'], results)
     expect(results).toEqual([])
     expect(fs.existsSync(path.join(dir, 'knip.json'))).toBe(false)
+  })
+
+  it('writes detected system binaries to ignoreBinaries', () => {
+    const results: ManagedFileResult[] = []
+    ensureKnipIgnores(dir, [], results, ['uv'])
+    expect(results[0]?.action).toBe('created')
+    expect((readKnip() as { ignoreBinaries?: string[] }).ignoreBinaries).toEqual(['uv'])
+  })
+
+  it('merges binaries into an existing knip.json alongside dependencies', () => {
+    fs.writeFileSync(path.join(dir, 'knip.json'), JSON.stringify({ ignoreDependencies: ['oxlint'], ignoreBinaries: ['az'] }))
+    const results: ManagedFileResult[] = []
+    ensureKnipIgnores(dir, ['jscpd'], results, ['az', 'uv'])
+    const cfg = readKnip() as { ignoreDependencies?: string[]; ignoreBinaries?: string[] }
+    expect(cfg.ignoreDependencies).toEqual(['oxlint', 'jscpd'])
+    expect(cfg.ignoreBinaries).toEqual(['az', 'uv'])
+  })
+})
+
+describe('detectSystemBinaries', () => {
+  function writeScripts(scripts: Record<string, string>) {
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({ name: 'scratch', scripts }))
+  }
+
+  it('finds a known system binary invoked in a compound script', () => {
+    writeScripts({ 'evals:local': 'cd evals && uv run deepeval test run .' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('ignores binaries knip already ignores globally and npm-installed bins', () => {
+    writeScripts({ up: 'docker compose up', tf: 'terraform apply' })
+    fs.mkdirSync(path.join(dir, 'node_modules', '.bin'), { recursive: true })
+    fs.writeFileSync(path.join(dir, 'node_modules', '.bin', 'terraform'), '')
+    expect(detectSystemBinaries(dir)).toEqual([])
+  })
+
+  it('skips env-var assignments to find the command word', () => {
+    writeScripts({ gen: 'NODE_ENV=test uv run pytest' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('does not report a system binary that only appears as an argument', () => {
+    writeScripts({ docs: 'echo uv is required' })
+    expect(detectSystemBinaries(dir)).toEqual([])
   })
 })

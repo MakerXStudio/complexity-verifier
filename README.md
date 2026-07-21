@@ -147,7 +147,7 @@ Each external check is configured through its **tool's own config file**, exactl
 `unused-code` and `duplicate-code` accept `--max-warnings <n>` and fail when findings exceed `n`.
 
 - `unused-code` passes the value to knip's [`--max-issues`](https://knip.dev/reference/cli#--max-issues). Knip configuration errors still fail.
-- `duplicate-code` counts jscpd clones. Do not pass jscpd's `--reporters`, `--output`, or `--silent` options with `--max-warnings`; `verifyx` sets them to produce the count.
+- `duplicate-code` counts **distinct duplicated regions**, not raw jscpd clones: jscpd reports the same duplication several times (overlapping ranges, and one pattern across N files as N−1 pairs), so clones whose ranges overlap are merged before the count is compared to the budget. The failure output shows both numbers. Do not pass jscpd's `--reporters`, `--output`, or `--silent` options with `--max-warnings`; `verifyx` sets them to produce the count.
 
 ```sh
 verifyx unused-code --max-warnings 5
@@ -247,7 +247,7 @@ It first asks how `verify` should run: **run all built-in checks** (`verifyx all
 - installs the external checks' tools as `--save-dev`, **skipping any already declared in `package.json` or present in `node_modules`** (so an existing `typescript`/`oxlint` is never re-installed or version-bumped). If the install hits a conflict (e.g. a peer-dependency clash), it isolates the failing package(s), installs the rest, and reports what to install manually at the end instead of aborting,
 - writes the **`verify` skill**: the same `SKILL.md` to `.claude/skills/verify/` (Claude) and `.agent-skills/verify/` (cross-vendor), so the integration is identical everywhere,
 - appends a one-line pointer to `CLAUDE.md` / `AGENTS.md` (only if not already present; existing content is never rewritten),
-- if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` (verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused). Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
+- if `unused-code` is selected, adds the other external tools (`oxlint`/`oxfmt`/`skott`/`jscpd`) to knip's `ignoreDependencies` (verifyx runs them at runtime, so knip can't see them and would otherwise report them as unused), and adds system binaries your scripts invoke (`uv`, `az`, `python`, `terraform`, …) that knip's own global list doesn't cover to `ignoreBinaries`. Merged into `knip.json` or `package.json#knip` (created if neither exists), adding only what's missing; a code-based `knip.ts`/`knip.js` is left for you to edit.
 
 The skill auto-triggers on "verify"/"run checks", so agents run the checks proactively; the pointer reinforces it for tools that read `CLAUDE.md`/`AGENTS.md` as standing instructions.
 
