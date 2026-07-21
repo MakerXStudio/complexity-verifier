@@ -61,7 +61,8 @@
     "cross-spawn": "^7.0.6",
     "enquirer": "^2.4.1",
     "minimatch": "^10.2.5",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "unbash": "^4.0.2"
   },
   "devDependencies": {
     "@rollup/plugin-typescript": "^12.3.0",

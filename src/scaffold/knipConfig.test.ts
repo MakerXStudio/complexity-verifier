@@ -4,7 +4,8 @@ import path from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { detectSystemBinaries, ensureKnipIgnores } from './knipConfig.ts'
+import { detectSystemBinaries } from './detectSystemBinaries.ts'
+import { ensureKnipIgnores } from './knipConfig.ts'
 import type { ManagedFileResult } from './writeManaged.ts'
 
 let dir: string
@@ -108,8 +109,40 @@ describe('detectSystemBinaries', () => {
     expect(detectSystemBinaries(dir)).toEqual(['uv'])
   })
 
+  it('finds a system binary invoked through a spawning wrapper', () => {
+    writeScripts({ test: 'cross-env NODE_ENV=test uv run pytest' })
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
+  it('finds system binaries invoked in expansions throughout a command', () => {
+    writeScripts({
+      expansions: '$(python --version) VERSION=$(python3 --version) echo "$(ruby --version)" <(terraform version)',
+    })
+    expect(detectSystemBinaries(dir)).toEqual(['python', 'python3', 'ruby', 'terraform'])
+  })
+
+  it('ignores same-named packages declared in any dependency field before installation', () => {
+    fs.writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        name: 'scratch',
+        scripts: { tools: 'python --version && python3 --version && ruby --version && terraform version && uv --version' },
+        dependencies: { python: '*' },
+        devDependencies: { python3: '*' },
+        peerDependencies: { ruby: '*' },
+        optionalDependencies: { terraform: '*' },
+      }),
+    )
+    expect(detectSystemBinaries(dir)).toEqual(['uv'])
+  })
+
   it('does not report a system binary that only appears as an argument', () => {
     writeScripts({ docs: 'echo uv is required' })
+    expect(detectSystemBinaries(dir)).toEqual([])
+  })
+
+  it('does not report calls to shell functions as system binaries', () => {
+    writeScripts({ local: 'python() { echo hi; }; python' })
     expect(detectSystemBinaries(dir)).toEqual([])
   })
 })

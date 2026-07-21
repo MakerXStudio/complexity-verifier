@@ -9,45 +9,6 @@ const SCHEMA = 'https://unpkg.com/knip/schema.json'
 
 type KnipConfig = { ignoreDependencies?: string[]; ignoreBinaries?: string[] } & Record<string, unknown>
 
-// context: tools knip flags as unlisted binaries because they are system-installed, not npm bins, and are
-// missing from knip's own IGNORED_GLOBAL_BINARIES (which already covers git, docker, aws, cargo, ...).
-const SYSTEM_BINARIES = [
-  'az',
-  'dotnet',
-  'gcloud',
-  'go',
-  'helm',
-  'kubectl',
-  'make',
-  'pip',
-  'pip3',
-  'pipx',
-  'poetry',
-  'python',
-  'python3',
-  'ruby',
-  'terraform',
-  'uv',
-  'uvx',
-]
-
-export function detectSystemBinaries(cwd: string): string[] {
-  const pkgPath = path.join(cwd, 'package.json')
-  if (!fs.existsSync(pkgPath)) return []
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as { scripts?: Record<string, string> }
-  const invoked = new Set<string>()
-  for (const script of Object.values(pkg.scripts ?? {})) {
-    for (const segment of script.split(/&&|\|\||;|\|/)) {
-      const command = segment
-        .trim()
-        .split(/\s+/)
-        .find((word) => word !== '' && !word.includes('='))
-      if (command) invoked.add(command)
-    }
-  }
-  return SYSTEM_BINARIES.filter((bin) => invoked.has(bin) && !fs.existsSync(path.join(cwd, 'node_modules', '.bin', bin)))
-}
-
 /** Append any missing `deps` to `existing`, preserving order; report whether anything changed. */
 function addMissing(existing: string[] | undefined, deps: readonly string[]): { list: string[]; changed: boolean } {
   const list = [...(existing ?? [])]
