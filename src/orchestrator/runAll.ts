@@ -2,7 +2,7 @@ import { CHECKS } from '../checks/registry.ts'
 import { color, paintRed } from '../shared/color.ts'
 import { resolveMode } from '../shared/mode.ts'
 import { installConsoleCapture, runCaptured } from '../shared/output.ts'
-import { runCommand } from '../shared/spawn.ts'
+import { runShellCommand } from '../shared/spawn.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { reportOutcomes } from './report.ts'
 import { entryCheckName, resolveEntries, resolveOverride, selectEntries } from './resolveEntries.ts'
@@ -19,7 +19,7 @@ function buildTasks(opts: RunAllOptions): Task[] {
   const spawn = (name: string, command: string, cwd: string, note?: string): Task => ({
     name,
     note,
-    run: async () => (await runCommand(command, { cwd, quiet: true })) === 0,
+    run: async () => (await runShellCommand(command, { cwd, quiet: true })) === 0,
   })
 
   const tasks: Task[] = CHECKS.map((check) => {
@@ -29,7 +29,7 @@ function buildTasks(opts: RunAllOptions): Task[] {
       name: check.name,
       note: 'overridden',
       run: async () => {
-        const ok = (await runCommand(override.command, { cwd: override.cwd, quiet: true })) === 0
+        const ok = (await runShellCommand(override.command, { cwd: override.cwd, quiet: true })) === 0
         if (!ok) console.error(color.dim(`↳ ${check.name}: ran \`${override.command}\` (override)`))
         return ok
       },

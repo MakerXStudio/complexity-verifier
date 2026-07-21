@@ -39,8 +39,8 @@ describe('check registry', () => {
     expect(getCheck('complexity')?.scaffold.script).toBe('verifyx complexity')
   })
 
-  it('scaffolds circular-deps with a default skott target after `--`', () => {
-    expect(getCheck('circular-deps')?.scaffold.script).toBe('verifyx circular-deps -- src/*.ts')
+  it('scaffolds circular-deps without a shell-dependent glob', () => {
+    expect(getCheck('circular-deps')?.scaffold.script).toBe('verifyx circular-deps')
   })
 
   it('exposes raw tool commands for eject on external checks, but not native ones', () => {

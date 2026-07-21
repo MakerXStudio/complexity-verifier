@@ -13,12 +13,12 @@ export type CheckResult = {
 
 /** Per-run options for a check. `extraArgs` are the tokens a user passes after `--` (external checks only). */
 export type RunDefaultOptions = {
-  /** Extra arguments appended verbatim to an external check's underlying command (e.g. `verifyx circular-deps -- src/*.ts`). */
+  /** Extra arguments appended verbatim to an external check's underlying argv (e.g. `verifyx circular-deps -- src/index.ts`). */
   extraArgs?: string[]
   maxWarnings?: number
 }
 
-/** A single verification. Native checks run in-process; external checks shell out to a tool. */
+/** A single verification. Native checks run in-process; external checks spawn a tool. */
 export type Check = {
   name: string
   description: string

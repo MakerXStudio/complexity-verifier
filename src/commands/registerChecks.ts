@@ -82,7 +82,7 @@ export function registerChecks(program: Command): void {
     const command = program
       .command(check.name)
       .description(check.description)
-      // Everything after `--` is forwarded verbatim to the underlying tool (e.g. `verifyx circular-deps -- src/*.ts`).
+      // Everything after `--` is forwarded verbatim to the underlying tool (e.g. `verifyx unused-code -- --production`).
       .argument('[toolArgs...]', 'extra arguments passed through to the underlying tool (after `--`)')
     if (check.supportsMaxWarnings) {
       command.option('--max-warnings <n>', 'tolerate up to n findings before failing (counts findings)', parseMaxWarnings)

@@ -1,10 +1,36 @@
-import { spawn } from 'node:child_process'
+import spawn from 'cross-spawn'
 
 import { emit, isCapturing } from './output.ts'
 
-// Keep passthrough globs unquoted for shell expansion.
-export function appendArgs(command: string, extraArgs: readonly string[] = []): string {
-  return extraArgs.length > 0 ? `${command} ${extraArgs.join(' ')}` : command
+/** Append user-supplied arguments without parsing, splitting, or shell expansion. */
+export function appendArgv(command: readonly string[], extraArgs: readonly string[] = []): string[] {
+  return [...command, ...extraArgs]
+}
+
+/** Render the exact argv used by a process in a platform-neutral diagnostic form. */
+export function formatArgv(argv: readonly string[]): string {
+  return JSON.stringify(argv)
+}
+
+const SAFE_SHELL_ARG = /^[A-Za-z0-9_@+=:,./-]+$/
+const PORTABLE_QUOTED_ARG = /^[^"\\$`%!\r\n]*$/
+
+function formatShellArg(arg: string): string {
+  if (arg.length > 0 && SAFE_SHELL_ARG.test(arg)) return arg
+  if (!PORTABLE_QUOTED_ARG.test(arg)) {
+    throw new Error(`cannot safely serialize argument for both POSIX and Windows npm scripts: ${JSON.stringify(arg)}`)
+  }
+  return `"${arg}"`
+}
+
+function assertNonEmptyArgv(argv: readonly string[]): asserts argv is readonly [string, ...string[]] {
+  if (argv.length === 0) throw new Error('argv command must have at least one entry (the executable)')
+}
+
+/** Serialize a trusted built-in argv for a cross-platform package.json script. */
+export function formatShellCommand(argv: readonly string[]): string {
+  assertNonEmptyArgv(argv)
+  return argv.map(formatShellArg).join(' ')
 }
 
 let verboseMode = false
@@ -23,27 +49,39 @@ function shouldSuppress(quiet?: boolean): boolean {
   return !!quiet || !!process.env.CLAUDECODE
 }
 
-export type RunCommandOptions = {
-  cwd?: string
-  env?: Record<string, string>
+type SpawnInvocation = { file: string; args: string[]; shell: boolean }
+
+function shellInvocation(command: string): SpawnInvocation {
+  return { file: command, args: [], shell: true }
+}
+
+function argvInvocation(argv: readonly string[]): SpawnInvocation {
+  assertNonEmptyArgv(argv)
+  const [file, ...args] = argv
+  return { file, args, shell: false }
+}
+
+type SpawnOptions = { cwd?: string; env?: Record<string, string> }
+
+function spawnChild(invocation: SpawnInvocation, stdio: 'inherit' | 'pipe' | ['ignore', 'pipe', 'pipe'], opts: SpawnOptions) {
+  return spawn(invocation.file, invocation.args, {
+    stdio,
+    shell: invocation.shell,
+    cwd: opts.cwd ?? process.cwd(),
+    env: opts.env ? { ...process.env, ...opts.env } : undefined,
+  })
+}
+
+export type RunCommandOptions = SpawnOptions & {
   quiet?: boolean
   /** Rewrite the command's buffered output before it is emitted (only applies when output is suppressed/buffered). */
   transform?: (output: string) => string
 }
 
-/**
- * Run a shell command, returning its exit code. Suppressed output (quiet, or under Claude Code) is buffered
- * and flushed to stdout only if the command fails, keeping passing runs quiet.
- */
-export function runCommand(command: string, opts: RunCommandOptions = {}): Promise<number> {
+function runInvocation(invocation: SpawnInvocation, opts: RunCommandOptions): Promise<number> {
   return new Promise((resolve) => {
     const suppress = shouldSuppress(opts.quiet)
-    const child = spawn(command, [], {
-      stdio: suppress ? 'pipe' : 'inherit',
-      shell: true,
-      cwd: opts.cwd ?? process.cwd(),
-      env: opts.env ? { ...process.env, ...opts.env } : undefined,
-    })
+    const child = spawnChild(invocation, suppress ? 'pipe' : 'inherit', opts)
     const chunks: Buffer[] = []
     if (suppress) {
       child.stdout?.on('data', (data: Buffer) => chunks.push(data))
@@ -58,21 +96,30 @@ export function runCommand(command: string, opts: RunCommandOptions = {}): Promi
       }
       resolve(exitCode)
     })
-    child.on('error', () => resolve(127))
+    child.on('error', (error) => {
+      emit(`${String(error)}\n`, 'err')
+      resolve(127)
+    })
   })
 }
 
-export function captureCommand(
-  command: string,
-  opts: { cwd?: string; env?: Record<string, string> } = {},
+/** Run a consumer-owned command through the platform shell. */
+export function runShellCommand(command: string, opts: RunCommandOptions = {}): Promise<number> {
+  return runInvocation(shellInvocation(command), opts)
+}
+
+/** Run a structured argv directly, using no shell. */
+export function runArgvCommand(argv: readonly string[], opts: RunCommandOptions = {}): Promise<number> {
+  return runInvocation(argvInvocation(argv), opts)
+}
+
+/** Run a structured argv directly and capture stdout/stderr separately. */
+export function captureArgvCommand(
+  argv: readonly string[],
+  opts: SpawnOptions = {},
 ): Promise<{ code: number; stdout: string; stderr: string }> {
   return new Promise((resolve) => {
-    const child = spawn(command, [], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
-      cwd: opts.cwd ?? process.cwd(),
-      env: opts.env ? { ...process.env, ...opts.env } : undefined,
-    })
+    const child = spawnChild(argvInvocation(argv), ['ignore', 'pipe', 'pipe'], opts)
     const out: Buffer[] = []
     const err: Buffer[] = []
     child.stdout?.on('data', (data: Buffer) => out.push(data))
@@ -80,6 +127,6 @@ export function captureCommand(
     child.on('close', (code) => {
       resolve({ code: code ?? 1, stdout: Buffer.concat(out).toString(), stderr: Buffer.concat(err).toString() })
     })
-    child.on('error', () => resolve({ code: 127, stdout: '', stderr: '' }))
+    child.on('error', (error) => resolve({ code: 127, stdout: '', stderr: String(error) }))
   })
 }

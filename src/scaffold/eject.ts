@@ -12,7 +12,7 @@ export type EjectResult = {
 export function ejectScripts(name: string): Record<string, string> {
   const check = getCheck(name)
   if (!check) {
-    const known = CHECKS.filter((c) => c.eject)
+    const known = CHECKS.filter((c) => c.kind === 'external')
       .map((c) => c.name)
       .join(', ')
     throw new Error(`Unknown check "${name}". Ejectable checks: ${known}.`)

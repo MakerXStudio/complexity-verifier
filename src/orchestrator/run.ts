@@ -1,5 +1,5 @@
 import { configureMode, resolveMode } from '../shared/mode.ts'
-import { runCommand, setVerbose } from '../shared/spawn.ts'
+import { runShellCommand, setVerbose } from '../shared/spawn.ts'
 import { type MeasureRecord, printMeasureTable } from './measure.ts'
 import { chatty, reportOutcomes } from './report.ts'
 import { entryCheckName, resolveEntries, selectEntries, type VerifyEntry } from './resolveEntries.ts'
@@ -16,7 +16,7 @@ export type OrchestrateOptions = {
 
 async function runEntry(entry: VerifyEntry): Promise<MeasureRecord> {
   const startTime = Date.now()
-  const code = await runCommand(entry.command, { cwd: entry.cwd, quiet: true })
+  const code = await runShellCommand(entry.command, { cwd: entry.cwd, quiet: true })
   return { script: entry.name, code, durationMs: Date.now() - startTime }
 }
 

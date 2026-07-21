@@ -1,9 +1,9 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { runCommand } from '../shared/spawn.ts'
+import { runShellCommand } from '../shared/spawn.ts'
 
-/** Signature of the command runner (defaults to `runCommand`); injectable so tests don't shell out. */
+/** Signature of the command runner (defaults to `runShellCommand`); injectable so tests don't shell out. */
 export type Runner = (command: string, opts: { cwd: string }) => Promise<number>
 
 export type InstallReport = {
@@ -41,7 +41,7 @@ function isInstalled(name: string, cwd: string, declared: Set<string>): boolean 
  * fails — typically a single peer-dependency conflict — falls back to per-package installs so one bad package
  * can't block the rest, and the exact failures are reported instead of aborting `init`.
  */
-export async function installDevDeps(devDeps: readonly string[], cwd: string, run: Runner = runCommand): Promise<InstallReport> {
+export async function installDevDeps(devDeps: readonly string[], cwd: string, run: Runner = runShellCommand): Promise<InstallReport> {
   const declared = declaredDeps(cwd)
   const skipped: string[] = []
   const toInstall: string[] = []

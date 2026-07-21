@@ -1,51 +1,40 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { runCaptured } from '../shared/output.ts'
-import { appendArgs, defineExternalCheck, externalFailureHint, runCountedBudget, selectCommand } from './external.ts'
+import { defineExternalCheck, externalFailureHint, runCountedBudget, selectCommand } from './external.ts'
 
-const fixable = { checkCommand: 'oxfmt --check .', fixCommand: 'oxfmt .' }
-const notFixable = { checkCommand: 'tsc --noEmit' }
+const fixable = { checkCommand: ['oxfmt', '--check', '.'], fixCommand: ['oxfmt', '.'] }
+const notFixable = { checkCommand: ['tsc', '--noEmit'] }
 
 describe('selectCommand', () => {
   it('uses the fix command in fix mode when the check is fixable', () => {
-    expect(selectCommand(fixable, 'fix')).toBe('oxfmt .')
+    expect(selectCommand(fixable, 'fix')).toEqual(['oxfmt', '.'])
   })
 
   it('uses the check command in check mode', () => {
-    expect(selectCommand(fixable, 'check')).toBe('oxfmt --check .')
+    expect(selectCommand(fixable, 'check')).toEqual(['oxfmt', '--check', '.'])
   })
 
   it('always uses the check command when the check has no fix command', () => {
-    expect(selectCommand(notFixable, 'fix')).toBe('tsc --noEmit')
-    expect(selectCommand(notFixable, 'check')).toBe('tsc --noEmit')
+    expect(selectCommand(notFixable, 'fix')).toEqual(['tsc', '--noEmit'])
+    expect(selectCommand(notFixable, 'check')).toEqual(['tsc', '--noEmit'])
   })
 })
 
 describe('externalFailureHint', () => {
-  it('names the tool, the exact command that ran, and the docs link', () => {
-    const hint = externalFailureHint({ name: 'unused-code', bin: 'knip', docs: 'https://knip.dev' }, 'knip --no-progress')
+  it('names the tool, the exact argv that ran, and the docs link', () => {
+    const hint = externalFailureHint({ name: 'unused-code', bin: 'knip', docs: 'https://knip.dev' }, ['knip', '--no-progress'])
     expect(hint).toContain('unused-code')
     expect(hint).toContain('knip')
-    expect(hint).toContain('knip --no-progress')
+    expect(hint).toContain('["knip","--no-progress"]')
     expect(hint).toContain('https://knip.dev')
   })
 
   it('still names the tool and command when no docs link is set', () => {
-    const hint = externalFailureHint({ name: 'circular-deps', bin: 'skott' }, 'skott src')
+    const hint = externalFailureHint({ name: 'circular-deps', bin: 'skott' }, ['skott', 'src'])
     expect(hint).toContain('skott')
-    expect(hint).toContain('skott src')
+    expect(hint).toContain('["skott","src"]')
     expect(hint).not.toContain('undefined')
-  })
-})
-
-describe('appendArgs', () => {
-  it('appends passthrough args verbatim, unquoted (so shell globs still expand)', () => {
-    expect(appendArgs('skott --showCircularDependencies', ['src/*.ts'])).toBe('skott --showCircularDependencies src/*.ts')
-  })
-
-  it('returns the command unchanged when there are no extra args', () => {
-    expect(appendArgs('oxlint .', [])).toBe('oxlint .')
-    expect(appendArgs('oxlint .')).toBe('oxlint .')
   })
 })
 
@@ -55,38 +44,48 @@ describe('defineExternalCheck', () => {
       name: 'lint',
       description: '',
       bin: 'oxlint',
-      checkCommand: 'oxlint .',
-      fixCommand: 'oxlint --fix .',
+      checkCommand: ['oxlint', '.'],
+      fixCommand: ['oxlint', '--fix', '.'],
       devDeps: [],
     })
     expect(lint.eject).toEqual({ check: 'oxlint .', fix: 'oxlint --fix .' })
   })
 
-  it('scaffolds default trailing args after `--` so a consumer can see and tweak them', () => {
+  it('scaffolds a bare CLI call and serializes argv only at the eject boundary', () => {
     const circular = defineExternalCheck({
       name: 'circular-deps',
       description: '',
       bin: 'skott',
-      checkCommand: 'skott',
+      checkCommand: ['skott'],
       devDeps: [],
-      scaffoldArgs: 'src/*.ts',
     })
-    expect(circular.scaffold.script).toBe('verifyx circular-deps -- src/*.ts')
+    expect(circular.scaffold.script).toBe('verifyx circular-deps')
     expect(circular.eject).toEqual({ check: 'skott', fix: undefined })
   })
 
   it('scaffolds a bare CLI call when there are no default args', () => {
-    const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: 'knip', devDeps: [] })
+    const knip = defineExternalCheck({ name: 'unused-code', description: '', bin: 'knip', checkCommand: ['knip'], devDeps: [] })
     expect(knip.scaffold.script).toBe('verifyx unused-code')
+  })
+
+  it('serializes eject lazily, so an unserializable command fails eject rather than check construction', () => {
+    const check = defineExternalCheck({ name: 'x', description: '', bin: 'tool', checkCommand: ['tool', '$HOME'], devDeps: [] })
+    expect(() => check.eject).toThrow('cannot safely serialize')
   })
 })
 
 describe('runCountedBudget', () => {
-  const spec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: 'jscpd src', docs: 'https://x' }
+  const spec = { name: 'duplicate-code', bin: 'jscpd', checkCommand: ['jscpd', 'src'], docs: 'https://x' }
   const budget = (count: number, report = '') => ({ strategy: 'count' as const, unit: 'clone', count: async () => ({ count, report }) })
 
   it('passes when the finding count is at or below the budget', async () => {
     expect(await runCountedBudget(spec, budget(5), 5, [], {})).toEqual({ name: 'duplicate-code', ok: true })
+  })
+
+  it('passes one prebuilt argv, including passthrough args, to the counter', async () => {
+    const count = vi.fn(async () => ({ count: 0, report: '' }))
+    await runCountedBudget(spec, { strategy: 'count', unit: 'clone', count }, 5, ['--ignore', 'has space'], {})
+    expect(count).toHaveBeenCalledWith({ argv: ['jscpd', 'src', '--ignore', 'has space'], env: {} })
   })
 
   it('fails over budget, printing the counting run’s report instead of re-running the tool', async () => {
